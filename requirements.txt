@@ -1,0 +1,11 @@
+# PURPOSE AND REMAINING WORK
+#
+# This file should list every package required to install and run the
+# assignment, including the versions used for the final experiments. The
+# existing notebooks show imports from llamea, ioh, numpy, torch, BoTorch,
+# GPyTorch, SciPy, matplotlib, iohinspector, and Polars, but they do not
+# provide a validated dependency list or pinned versions.
+#
+# The complete package list, compatible versions, and any CPU/GPU installation
+# instructions still need to be recorded after the target environment is
+# selected and tested.

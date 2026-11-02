@@ -1,0 +1,14 @@
+# Combined assignment configuration and prompt file.
+#
+# This file should contain the group-specific problems, seeds, budgets, LLaMEA
+# settings, output locations, and the prompts used for both generation runs.
+# The supplied notebooks provide example values and prompt roles, but not the
+# final instructor-assigned configuration.
+
+# TODO: Add group_id, assigned BBOB function/instance, and real-world problem.
+# TODO: Add dimension 6, generation budget 60, benchmark budget 600, and seeds.
+# TODO: Add LLaMEA model, population, logging, and output settings.
+
+prompts:
+  # TODO: Add role_prompt, bbob_task_prompt, realworld_task_prompt,
+  # example_prompt, and output-format requirements.
