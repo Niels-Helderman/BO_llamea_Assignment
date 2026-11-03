@@ -1,0 +1,46 @@
+# Set your assigned group ID and the two fixed target IDs before searching.
+group_id: 1
+dimension: 6
+problems:
+  bbob: {fid: 1, instance: 1}
+  realworld: {problem_id: 1124}
+
+# Use a free-to-use model under the course policy.
+llm:
+  provider: gemini              # gemini | ollama
+  model: gemini-3.1-flash-lite  # Availability can change
+
+# Small, configurable elitist (mu + lambda) evolutionary search.
+llamea:
+  n_parents: 2                  # 1..4; initial population size
+  n_offspring: 2                # 1..4; number generated per generation
+  elitism: true                # Keep best parents
+  parent_selection: random     # random | tournament | roulette
+
+stage1:
+  max_candidates: 100          # Across initial population and all offspring
+  budget: 60                   # Actual objective calls per seed, including initialization
+  seed_workers: 4              # Independent seed processes, not LLM requests
+  timeout_seconds: 240         # Hard wall time per seed, in seconds
+  progress_every: 2
+  aocc:
+    # Normalized log-regret AOCC: log10((best - reference) / scale).
+    # This is a documented project metric; confirm course-specific requirements.
+    lower_log10_error: -6
+    upper_log10_error: 2
+    bbob_reference: auto       # IOH provides instance-specific optimum
+    realworld_reference: auto  # Auto justified ONLY for real-world ID 1124
+    scale: auto                # Fixed per-target calibration, NOT per algorithm
+    calibration_points: 32     # Extra setup-only objective calls, logged separately
+    calibration_seed: 2026
+
+stage2:
+  budget: 600                  # --budget 50 overrides for development runs
+  seed_workers: 4
+  timeout_seconds: 1800        # Per run; adjust if valid optimizers time out
+  botorch_initial_points: 12  # Example baseline; verify instructor's settings
+  ioh_logging: false
+
+prompts:
+  bbob: prompts/bbob.txt
+  realworld: prompts/realworld.txt

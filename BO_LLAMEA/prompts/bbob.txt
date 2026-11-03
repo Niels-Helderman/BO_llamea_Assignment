@@ -1,0 +1,12 @@
+Design a robust Bayesian optimization algorithm for MINIMIZING a continuous, deterministic six-dimensional COCO-BBOB black-box function (instance 1). The algorithm is selected by its mean area-over-convergence fitness over ten seeds, so prioritize reliable early improvement, not just the final observation.
+
+Required interface: exactly one complete Python class with __init__(self, budget, dim) and __call__(self, func) returning (best_y, best_x). The only way to observe the objective is func(x), a single finite NumPy vector of shape (dim,) inside func.bounds.lb / func.bounds.ub. Respect the EXACT budget, including random or structured initialization. Return best_y as a Python float and best_x as a finite (dim,) vector. No filesystem, network, subprocess or GPU dependency. Do not reset global random seeds.
+
+Numerical reliability and quality:
+- Normalize domain coordinates to [0,1]^dim and center/standardize observed targets as appropriate. Keep X shape (n,dim), y shape (n,), and acquisition values finite Python scalars.
+- Prefer reliable GP/surrogate implementations (scikit-learn, BoTorch, SciPy/NumPy are available) over handwritten covariance inverses. If fitting deterministic data, consider small fixed diagonal jitter instead of unconstrained learned noise. Avoid ill-conditioned matrices, duplicate points and unproductive repeated boundary proposals.
+- Use a meaningful exploration/exploitation acquisition rule (for example log-EI, EI, UCB/LCB or a well-justified alternative). Search for acquisition maxima efficiently: use bounded candidates, a modest candidate pool or bounded multi-start optimization.
+- If GP fitting or acquisition optimization fails, fall back to a bounded valid sample rather than crashing; never call func more than budget times.
+- The SAME generated class will later be evaluated at 600 objective calls: avoid expensive kernel hyperparameter optimization at every step as data grows. Refit costly hyperparameters periodically or limit fitting iterations, and reuse/calculate shared quantities where possible. Do not stop querying just because improvements are temporarily flat.
+
+Check matrix dimensions, scalar conversions, the first post-initialization acquisition step, and the budget before returning the Python class. Provide executable Python code, not pseudocode. Improve the algorithm when LLaMEA feedback reports a specific error or poor convergence.
