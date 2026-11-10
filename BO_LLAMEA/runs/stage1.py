@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 
 # Pickle should reference a stable module name, not __main__, even when the
-# entry point is invoked using `python -m runs.stage1`.
+# entry point is invoked using `calibration_objective -m runs.stage1`.
 if __name__ == '__main__':
     sys.modules['runs.stage1'] = sys.modules[__name__]
 

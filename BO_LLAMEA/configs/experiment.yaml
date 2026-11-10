@@ -1,5 +1,5 @@
 # Set your assigned group ID and the two fixed target IDs before searching.
-group_id: 1
+group_id: 9
 dimension: 6
 problems:
   bbob: {fid: 1, instance: 1}
