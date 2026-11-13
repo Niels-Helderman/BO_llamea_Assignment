@@ -142,7 +142,8 @@ class CandidateScorer:
                 evaluation_error = f'{type(exc).__name__}: {exc}'
                 print(f'Candidate {n} evaluation failed: {evaluation_error}', file=sys.stderr)
         good = len(runs) == 10 and all(r.status == 'ok' and r.aocc is not None for r in runs)
-        score = float(np.mean([r.aocc for r in runs])) if good else -1.0
+        # The paper assigns failed candidates an AOCC fitness of zero.
+        score = float(np.mean([r.aocc for r in runs])) if good else 0.0
         feedback = f'Fitness (mean AOCC across 10 runs): {score:.6f}; valid={good}'
         if good:
             final = float(np.mean([r.best for r in runs]))

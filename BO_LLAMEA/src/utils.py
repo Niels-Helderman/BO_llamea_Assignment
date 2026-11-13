@@ -93,7 +93,7 @@ def plot_one(result, path):
 
 
 def plot_fitness(records, path):
-    """AOCC on a shared 0..1 scale; invalid candidates are marked separately."""
+    """AOCC on a shared 0..1 scale; invalid candidates receive zero fitness."""
     if not records:
         return
     import matplotlib
@@ -105,13 +105,13 @@ def plot_fitness(records, path):
     fig, ax = plt.subplots(figsize=(8, 4.5))
     if valid.any():
         ax.scatter(steps[valid], fitness[valid], label='Valid candidate', s=25)
-        # No false improvement from failed candidates: -1 is NOT real AOCC.
+        # Invalid candidates receive zero fitness and cannot improve the best-so-far AOCC.
         best = np.maximum.accumulate(np.where(valid, fitness, -np.inf))
         best[~np.isfinite(best)] = np.nan
         ax.plot(steps, best, label='Best-so-far AOCC')
     if (~valid).any():
         ax.scatter(steps[~valid], np.zeros((~valid).sum()), c='crimson',
-                   marker='x', label='Invalid (fitness penalty: -1)')
+                   marker='x', label='Invalid (AOCC fitness: 0)')
     ax.set(xlabel='Candidates evaluated', ylabel='Mean normalized AOCC (10 seeds)',
            ylim=(-.035, 1.03), title='LLaMEA search (higher is better)')
     ax.legend()
@@ -126,8 +126,13 @@ def plot_stage2(results, budget, path, optimum=None, metric=None):
     """Mean best-so-far +/- SE, either raw loss/objective or relative gap.
 
     Real-world *raw* plots stay in objective units; BBOB raw plots show
-    instance-specific loss. Normalized plots use the FIXED per-target AOCC
-    reference/scale and a common log y-axis, not curve-specific min/max.
+    instance-specific loss. Normalized plots use the fixed per-target AOCC
+    reference and a common log y-axis. With ``metric['scale']`` they show the
+    existing relative gap; without it they show the paper's unscaled
+    best-so-far precision.
+
+    Failed runs are excluded from means and standard errors. Their counts are
+    retained in the status and summary outputs.
     """
     from .performance import best_so_far
     import matplotlib
@@ -142,8 +147,10 @@ def plot_stage2(results, budget, path, optimum=None, metric=None):
         any_good = True
         curves = np.stack([best_so_far(r.ys, budget) for r in runs])
         if metric is not None:
-            curves = np.maximum((curves - float(metric['reference'])) /
-                                float(metric['scale']), 1e-12)
+            curves = curves - float(metric['reference'])
+            if metric.get('scale') is not None:
+                curves = curves / float(metric['scale'])
+            curves = np.maximum(curves, 1e-12)
         elif optimum is not None:
             curves = curves - optimum
         avg = curves.mean(axis=0)
@@ -160,8 +167,12 @@ def plot_stage2(results, budget, path, optimum=None, metric=None):
         ax.set_yscale('log')
         # Identical axis limits across targets: the same AOCC log-error window.
         ax.set_ylim(10.0 ** float(metric['lower']), 10.0 ** float(metric['upper']))
-        ax.set_ylabel('Relative best-so-far gap: (f - reference) / scale')
-        ax.set_title('Normalized cross-problem view (lower is better)')
+        if metric.get('scale') is None:
+            ax.set_ylabel('Best-so-far precision: f - reference')
+            ax.set_title('Paper AOCC precision view (lower is better)')
+        else:
+            ax.set_ylabel('Relative best-so-far gap: (f - reference) / scale')
+            ax.set_title('Normalized cross-problem view (lower is better)')
     else:
         ax.set_ylabel('Best-so-far loss (f - f*)' if optimum is not None
                       else 'Best-so-far objective')

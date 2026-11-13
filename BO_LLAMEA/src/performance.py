@@ -77,17 +77,27 @@ def best_so_far(ys, budget: int | None = None) -> np.ndarray:
     return curve
 
 
-def aocc(ys, budget: int, reference: float, lower=-8.0, upper=2.0, scale=1.0) -> float:
+def aocc(ys, budget: int, reference: float, lower=-8.0, upper=2.0,
+         scale: float | None = 1.0) -> float:
     """Input: history, horizon, fixed optimum/reference and log-error bounds.
 
     Output: normalized area-over-convergence (larger is better, range [0,1]).
     Uses mean of clipped normalized negative log10((best_y-reference)/scale).
     This must be matched to the specific course/paper AOCC convention before
     final grading; the PDF does not specify numerical reference/range settings.
+    With a scale, uses the existing project-specific relative-log-error AOCC.
+    With ``scale=None``, uses the paper's clipped log-precision AOCC.
     """
-    if not np.isfinite(reference) or not np.isfinite(lower + upper) or lower >= upper or not np.isfinite(scale) or scale <= 0:
+    if (not np.isfinite(reference) or not np.isfinite(lower + upper) or lower >= upper):
         raise ValueError('Invalid AOCC reference/range')
     curve = best_so_far(ys, budget)
+    if scale is None:
+        # Paper convention: y_i = log10(f_best_i - f*) followed by clipping.
+        precision = np.maximum(curve - reference, 10.0 ** lower)
+        clipped = np.clip(np.log10(precision), lower, upper)
+        return float((1.0 - (clipped - lower) / (upper - lower)).mean())
+    if not np.isfinite(scale) or scale <= 0:
+        raise ValueError('Invalid AOCC scale')
     error = np.maximum((curve - reference) / scale, 10.0 ** lower)
     return float(np.clip((upper - np.log10(error)) / (upper - lower), 0, 1).mean())
 
@@ -203,7 +213,8 @@ def _execute(spec: Algorithm, problem_spec: ProblemSpec, seed: int, budget: int,
             if aocc_config:
                 result.aocc = aocc(result.ys, budget, float(aocc_config['reference']),
                                    float(aocc_config['lower']), float(aocc_config['upper']),
-                                   float(aocc_config.get('scale', 1.0)))
+                                   (float(aocc_config['scale'])
+                                    if aocc_config.get('scale') is not None else None))
     except BaseException as exc:
         result.status = 'invalid' if isinstance(exc, BudgetExceeded) else 'error'
         result.error = traceback.format_exc(limit=5)[-1800:]

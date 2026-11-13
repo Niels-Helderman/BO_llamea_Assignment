@@ -90,13 +90,16 @@ def known_optimum(spec: ProblemSpec) -> float | None:
 
 
 def metric_for_target(cfg: dict, kind: str, cache_dir) -> dict:
-    """Fixed, independently calibrated per-problem AOCC metric.
+    """Fixed, independently calibrated per-problem AOCC metric, optionally using paper-style precision..
 
     BBOB supplies an instance-specific true optimum; problem 1124 supplies a
     proven lower bound of zero. Objective *scale* is not provided by either
     wrapper. Estimate it once from a separately logged, fixed-seed space-filling
     design, not from any candidate algorithm's trajectory. Calibration calls
     are setup overhead, outside each independently counted optimizer run.
+    When ``stage1.aocc.scale`` is ``auto`` or a positive number, the
+    existing scaled metric is used. When it is ``null``, no calibration is
+    performed and the paper's unscaled log-precision metric is selected.
     """
     from dataclasses import asdict
     import hashlib
@@ -118,11 +121,14 @@ def metric_for_target(cfg: dict, kind: str, cache_dir) -> dict:
     reference = float(ref)
     lower = float(settings['lower_log10_error'])
     upper = float(settings['upper_log10_error'])
-    points = int(settings.get('calibration_points', 32))
-    seed = int(settings.get('calibration_seed', 2026))
     scale_mode = settings.get('scale', 'auto')
     if not np.isfinite(reference) or not np.isfinite(lower + upper) or lower >= upper:
         raise ValueError('Invalid AOCC reference or log-error window')
+    if scale_mode is None or str(scale_mode).lower() in ('none', 'paper'):
+        return dict(reference=reference, lower=lower, upper=upper, scale=None)
+
+    points = int(settings.get('calibration_points', 32))
+    seed = int(settings.get('calibration_seed', 2026))
     if not (4 <= points <= 1024):
         raise ValueError('calibration_points must be 4..1024')
 

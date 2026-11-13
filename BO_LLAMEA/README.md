@@ -20,7 +20,7 @@ BO_LLAMEA/
 │   ├── stage1.py             # LLaMEA generation, evaluation, selection, resume
 │   └── stage2.py             # Cross-problem benchmarking and reports
 ├── src/
-│   ├── problems.py           # Problem setup, bounds, optimum/reference, calibration
+│   ├── problems.py           # Problem setup, bounds, optimum/reference and AOCC metric
 │   ├── performance.py        # Objective-call guard, AOCC, parallel seed evaluation
 │   ├── baselines.py          # CMA-ES, BoTorch and a simple random-search utility
 │   └── utils.py              # Seeds, configuration, saving results and plotting
@@ -56,6 +56,47 @@ Stage 2: Evaluate FOUR methods on BOTH problems
                    |
            CSV, JSON and convergence plots
 ```
+
+### Deliberate differences from LLaMEA and the notebooks
+
+This project uses the existing LLaMEA implementation rather than reimplementing
+its evolutionary search. The differences below are experiment-specific additions
+needed for the assignment:
+
+| Area | LLaMEA/notebook approach | This project | Reason and advantage |
+| --- | --- | --- | --- |
+| Search framework | LLaMEA owns candidate generation, selection and its internal experiment logs. | LLaMEA remains an installed dependency; `runs/stage1.py` supplies the assignment prompt, evaluates candidates and connects fitness feedback. | Keeps the framework behavior intact while making the assignment-specific experiment explicit and reproducible. |
+| Objective accounting | Notebook examples commonly attach an IOH logger directly to a problem and inspect the resulting log. | A guarded callback records every query, validates its shape and bounds, enforces the budget, and stores `xs` and `ys` explicitly. | Prevents initialization, batched calls or accidental extra calls from bypassing the 60/600 evaluation limits. |
+| Candidate isolation | Notebook examples generally run in the current Python process. | Generated candidates run in spawned worker processes with per-run timeouts and isolated random seeds. | A broken or non-terminating generated algorithm cannot block the complete experiment, and seed runs do not share optimizer state. |
+| Parallelism | Notebook code is mainly written for interactive sequential execution. | Independent seed runs can be evaluated in parallel, while LLM generation remains sequential. | Reduces runtime without changing the evolutionary search order or mixing LLM requests. |
+| AOCC calculation | The notebooks demonstrate an IOH-style logger that accumulates a metric during objective calls. | Raw objective histories are retained and AOCC is calculated after the run. The project supports the existing scaled metric and an optional paper-style unscaled log-precision metric. | Post-processing makes the exact metric definition switchable and auditable without losing the underlying observations. |
+| Failure handling | Notebook examples usually focus on successful runs and exploratory output. | Invalid, timed-out and errored runs receive explicit statuses and error information; invalid Stage 1 candidates receive zero fitness. | Failed runs cannot silently appear as successful results, and the failure rate can be reported with the benchmark results. |
+| Logging and persistence | Notebook output is often kept in notebook cells, IOH logs or interactive variables. | Candidate source, prompts, configuration, checkpoints, raw traces, statuses, JSON and long-format CSV files are saved under `results/`. Optional native IOH Analyzer logs are also supported. | Makes the experiment restartable, inspectable and suitable for a written report without requiring the notebooks. |
+| Plotting | Notebook plots are primarily interactive and exploratory. | Plots are generated as reproducible PNG files from saved results, including convergence, standard-error bands and normalized precision views. | Figures can be regenerated and compared consistently after the experiment has finished. |
+| Benchmarking | The notebooks show individual examples and logger usage. | Stage 2 evaluates both generated algorithms, CMA-ES and BoTorch on both target problems using the same evaluator and seed set. | Ensures a fair cross-problem comparison under one shared accounting and persistence format. |
+
+The implementation also differs from the simpler examples in several
+engineering and assignment-specific ways:
+
+| Area | This project-specific implementation | Reason and advantage |
+| --- | --- | --- |
+| Assignment validation | Configuration is checked for dimension 6, instance 1, valid BBOB/problem IDs, ten group seeds, candidate limits, budgets, worker counts and timeouts. | Invalid experiments fail early instead of producing results that cannot satisfy the assignment protocol. |
+| Problem integration | `src/problems.py` creates fresh IOH or `Practical_Problems` objectives and uses their bounds; it does not copy or reimplement benchmark functions. | Keeps benchmark behavior tied to the authoritative libraries and avoids accidentally changing the functions being evaluated. |
+| Optimum/reference handling | BBOB references come from the selected IOH instance. Real-world references are only inferred automatically for problem 1124; other problems require an explicit configured reference. | Avoids treating the generic `Practical_Problems.optimum.y` placeholder as a proven optimum. |
+| LLaMEA checkpoints | `AtomicLLaMEA` preserves LLaMEA's search and selection logic but adds atomic checkpoint replacement, final-batch limiting and resume reconciliation. | A power loss or interruption cannot leave a half-written checkpoint, and a final partial offspring batch cannot exceed the candidate limit. |
+| Resume safety | Resume requires an unchanged configuration, prompt and metric fingerprint, and uses the committed LLaMEA history rather than an incomplete callback record. | Prevents silently mixing candidates generated under different experimental settings. |
+| Candidate interface | Generated code is required to expose the assignment interface and can only query the objective through the supplied guarded callback. | Gives generated algorithms the same interface as the baselines and makes objective usage auditable. |
+| Baseline interface | Random search, CMA-ES and BoTorch are adapted to the same `(budget, dim, func)` protocol used by generated algorithms. | CMA-ES, BoTorch and generated algorithms share bounds, budgets, seeding and result handling rather than using separate evaluation paths. |
+| BoTorch behavior | The BoTorch baseline explicitly counts initialization calls, uses a Sobol initialization design, fits a `SingleTaskGP` and proposes points with log expected improvement. | Makes the baseline reproducible and ensures initialization cannot silently exceed the evaluation budget. Its settings remain configurable and must be confirmed for grading. |
+| Warning handling | Worker processes collect and aggregate repeated numerical or GP warnings into result metadata instead of flooding the terminal. | Warnings remain available for diagnosis without obscuring progress or changing the objective results. |
+| Result model | Each run stores queried points, objective values, status, error text, elapsed time, warnings and AOCC in a serializable `Result`. | The complete trajectory and failure context remain available for later analysis, replotting and audit. |
+| Atomic persistence | JSON files are written through temporary files and atomic replacement; Stage 1 and Stage 2 save intermediate checkpoints after completed units of work. | Interruptions are less likely to corrupt experiment metadata, and completed work is easier to recover. |
+| Native IOH logging | IOH Analyzer logging is optional and is attached in addition to the guarded project logger, rather than being the only source of truth. | Native IOH tools remain available while the assignment-specific CSV/JSON traces still capture every accepted objective query. |
+| Execution scope | The two assignment stages are separate commands: Stage 1 generates and selects algorithms, while Stage 2 loads those winners and benchmarks all methods on both targets. | Prevents generation and final benchmarking from being accidentally conflated and makes transfer evaluation explicit. |
+
+These changes are intentionally limited to the experiment harness around
+LLaMEA. They do not replace LLaMEA's candidate generation, parent selection,
+prompting or evolutionary implementation.
 
 ## 2. Installation
 
@@ -163,7 +204,7 @@ The project's main settings live in **`configs/experiment.yaml`**. Set the corre
 | `llamea.elitism` | Must remain `true` in this implementation |
 | `stage1.max_candidates`, `budget` | Up to **100 candidates**, **60 objective calls per seed** |
 | `stage1.seed_workers`, `timeout_seconds` | Parallel seed processes and per-run timeout |
-| `stage1.aocc` | Fitness reference, normalization and calibration |
+| `stage1.aocc` | Fitness reference, AOCC bounds and optional scale |
 | `stage2.budget`, `seed_workers` | Benchmark budget (default **600**) and concurrency |
 | `stage2.botorch_initial_points` | BoTorch baseline initialization size |
 | `prompts.bbob`, `prompts.realworld` | Paths to the two independent search prompts |
@@ -172,7 +213,7 @@ The project's main settings live in **`configs/experiment.yaml`**. Set the corre
 
 **How prompts are used:** Stage 1 loads the target's text file from `prompts/`, appends the required Python interface and passes it to LLaMEA. On later generations, LLaMEA also provides selected parent code and evaluation feedback. Both prompt files may contain different problem-specific guidance. Each generated algorithm must implement a class with `__init__(self, budget, dim)` and `__call__(self, func)`, returning `(best_y, best_x)`; `func(x)` is the **only** way to query the black-box objective and provides `func.bounds.lb` / `func.bounds.ub`.
 
-**AOCC:** a candidate's fitness is the mean normalized AOCC over ten seeds; larger is better. BBOB uses its `ioh` optimum as the reference. Real-world problem **1124** uses a justified reference lower bound of zero; other practical problems require an explicit justified reference in YAML. With `stage1.aocc.scale: auto`, a fixed scale is calibrated from **32 additional, separately recorded objective queries per target** in `results/calibration/`, then reused for every candidate and benchmark. These setup calls are not part of any algorithm's 60/600-call budget. This is a **project-specific relative-log-error AOCC variant**; confirm the instructor's preferred normalization for the final graded analysis.
+**AOCC:** a candidate's fitness is the mean normalized AOCC over ten seeds; larger is better. BBOB uses its `ioh` optimum as the reference. Real-world problem **1124** uses a justified reference lower bound of zero; other practical problems require an explicit justified reference in YAML. With `stage1.aocc.scale: auto`, a fixed scale is calibrated from **32 additional, separately recorded objective queries per target** in `results/calibration/`, then reused for every candidate and benchmark. These setup calls are not part of any algorithm's 60/600-call budget. Set `stage1.aocc.scale: null` to select the paper's unscaled clipped log-precision formula instead; no calibration is performed in that mode. Invalid Stage 1 candidates receive AOCC fitness `0`, as required by the paper. Failed Stage 2 runs are excluded from convergence means and standard errors, while their counts remain in the status and summary outputs.
 
 ## 4. Running the experiments
 
@@ -250,9 +291,9 @@ results/
             └── bbob_normalized.png, realworld_normalized.png
 ```
 
-- **Stage 1 `fitness.png`:** mean normalized AOCC (**higher is better**) versus candidate count. Invalid candidates get fitness `-1` and are marked separately.
+- **Stage 1 `fitness.png`:** mean normalized AOCC (**higher is better**) versus candidate count. Invalid candidates get fitness `0` and are marked separately.
 - **Stage 2 `*_convergence.png`:** best-so-far BBOB **loss** or real-world **objective**, averaged across valid seeds, with standard-error bands (**lower is better**).
-- **Stage 2 `*_normalized.png`:** relative best-so-far gap on the same normalized logarithmic scale for both problems. These plots supplement, rather than replace, the raw convergence curves.
+- **Stage 2 `*_normalized.png`:** with a scale, relative best-so-far gap on the existing normalized logarithmic scale; without a scale, unscaled best-so-far precision (`f - reference`) on the paper's logarithmic bounds. These plots supplement, rather than replace, the raw convergence curves.
 - **Stage 2 `*_statuses.csv`:** seeded run statuses, objective calls, runtime, failure messages and aggregated scikit-learn/GP warnings. Warnings are collected in the workers rather than flooding the terminal.
 
 ## 6. Reproducibility and limitations

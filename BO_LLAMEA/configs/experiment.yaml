@@ -26,11 +26,13 @@ stage1:
   aocc:
     # Normalized log-regret AOCC: log10((best - reference) / scale).
     # This is a documented project metric; confirm course-specific requirements.
-    lower_log10_error: -6
+    # Set scale to null for the paper's unscaled log-precision AOCC.
+    # Keep auto (or a positive number) for the existing scaled metric.
+    lower_log10_error: -8
     upper_log10_error: 2
     bbob_reference: auto       # IOH provides instance-specific optimum
     realworld_reference: auto  # Auto justified ONLY for real-world ID 1124
-    scale: auto                # Fixed per-target calibration, NOT per algorithm
+    scale: auto                # auto/number = scaled metric; null = paper metric
     calibration_points: 32     # Extra setup-only objective calls, logged separately
     calibration_seed: 2026
 
