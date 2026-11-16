@@ -1,0 +1,9 @@
+{
+  "number": 67,
+  "class_name": "BayesianOptimizer",
+  "fitness": 0.0,
+  "valid": false,
+  "generation": 33,
+  "code": "code/candidate_067.py",
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 14 evaluations; location=File \"<generated candidate>\", line 45, in __call__; error=ValueError: could not convert string to float: np.str_('fixed')"
+}

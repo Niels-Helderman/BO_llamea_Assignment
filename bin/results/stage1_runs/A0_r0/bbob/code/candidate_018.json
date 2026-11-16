@@ -1,0 +1,9 @@
+{
+  "number": 18,
+  "class_name": "BayesianOptimizer",
+  "fitness": 0.0,
+  "valid": false,
+  "generation": 17,
+  "code": "code/candidate_018.py",
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 0 evaluations; location=File \"<generated candidate>\", line 22, in __call__; error=ValueError: operands could not be broadcast together with shapes (15,) (6,)"
+}

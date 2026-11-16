@@ -1,0 +1,9 @@
+{
+  "number": 68,
+  "class_name": "BayesianOptimizer",
+  "fitness": 0.0,
+  "valid": false,
+  "generation": 33,
+  "code": "code/candidate_068.py",
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 12 evaluations; location=File \"<generated candidate>\", line 35, in __call__; error=ValueError: Invalid parameter whitekernel for kernel Matern(length_scale=[1, 1, 1, 1, 1, 1], nu=2.5) + WhiteKernel(noise_level=1e-08). Check the list of available parameters with `kernel.get_params().keys()`."
+}

@@ -1,0 +1,9 @@
+{
+  "number": 24,
+  "class_name": "BayesianOptimizer",
+  "fitness": 0.0,
+  "valid": false,
+  "generation": 23,
+  "code": "code/candidate_024.py",
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 15 evaluations; location=File \"<generated candidate>\", line 58, in __call__; error=AttributeError: 'numpy.ndarray' object has no attribute 'append'"
+}

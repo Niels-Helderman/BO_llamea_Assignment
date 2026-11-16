@@ -1,0 +1,9 @@
+{
+  "number": 93,
+  "class_name": "BayesianOptimizer",
+  "fitness": 0.0,
+  "valid": false,
+  "generation": 46,
+  "code": "code/candidate_093.py",
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 16 evaluations; location=File \"<generated candidate>\", line 55, in __call__; error=TypeError: only 0-dimensional arrays can be converted to Python scalars"
+}

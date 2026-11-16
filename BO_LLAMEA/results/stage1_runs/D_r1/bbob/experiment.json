@@ -1,0 +1,93 @@
+{
+  "config": {
+    "group_id": 9,
+    "dimension": 6,
+    "problems": {
+      "bbob": {
+        "fid": 1,
+        "instance": 1
+      },
+      "realworld": {
+        "problem_id": 1124
+      }
+    },
+    "llm": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite"
+    },
+    "llamea": {
+      "n_parents": 2,
+      "n_offspring": 2,
+      "elitism": true,
+      "parent_selection": "tournament",
+      "tournament_size": 2,
+      "operators": "novelty",
+      "feedback": "rich"
+    },
+    "stage1": {
+      "max_candidates": 100,
+      "budget": 60,
+      "seed_workers": 4,
+      "timeout_seconds": 240,
+      "progress_every": 2,
+      "aocc": {
+        "lower_log10_error": -8,
+        "upper_log10_error": 2,
+        "bbob_reference": "auto",
+        "realworld_reference": "auto",
+        "scale": "auto",
+        "calibration_points": 32,
+        "calibration_seed": 2026
+      }
+    },
+    "stage2": {
+      "budget": 600,
+      "seed_workers": 4,
+      "timeout_seconds": 1800,
+      "botorch_initial_points": 12,
+      "ioh_logging": false
+    },
+    "prompts": {
+      "bbob": "prompts/bbob.txt",
+      "realworld": "prompts/realworld.txt"
+    }
+  },
+  "target": "bbob",
+  "metric": {
+    "reference": 79.48,
+    "scale": 58.98920507625225,
+    "lower": -8.0,
+    "upper": 2.0
+  },
+  "signature": "520d0d410fe8177f017bd056cbd17d4e8f88868c42c109abd188ee204df4c44a",
+  "seeds": [
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99
+  ],
+  "machine": {
+    "python": "3.11.17 (main, Oct 14 2026, 01:05:33) [Clang 23.1.3 ]",
+    "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "llamea": "1.4.2",
+      "ioh": "0.3.22",
+      "Practical_Problems": "0.1.0",
+      "numpy": "2.4.6",
+      "scipy": "1.17.1",
+      "cma": "4.6.0",
+      "botorch": "0.18.1",
+      "gpytorch": "1.15.2",
+      "torch": "2.15.0",
+      "matplotlib": "3.11.2",
+      "PyYAML": "6.0.3"
+    }
+  },
+  "prompt": "Design a robust Bayesian optimization algorithm for MINIMIZING a continuous, deterministic six-dimensional COCO-BBOB black-box function (instance 1). The algorithm is selected by its mean area-over-convergence fitness over ten seeds, so prioritize reliable early improvement, not just the final observation.\n\nRequired interface: exactly one complete Python class with __init__(self, budget, dim) and __call__(self, func) returning (best_y, best_x). The only way to observe the objective is func(x), a single finite NumPy vector of shape (dim,) inside func.bounds.lb / func.bounds.ub. Respect the EXACT budget, including random or structured initialization. Return best_y as a Python float and best_x as a finite (dim,) vector. No filesystem, network, subprocess or GPU dependency. Do not reset global random seeds.\n\nNumerical reliability and quality:\n- Normalize domain coordinates to [0,1]^dim and center/standardize observed targets as appropriate. Keep X shape (n,dim), y shape (n,), and acquisition values finite Python scalars.\n- Prefer reliable GP/surrogate implementations (scikit-learn, BoTorch, SciPy/NumPy are available) over handwritten covariance inverses. If fitting deterministic data, consider small fixed diagonal jitter instead of unconstrained learned noise. Avoid ill-conditioned matrices, duplicate points and unproductive repeated boundary proposals.\n- Use a meaningful exploration/exploitation acquisition rule (for example log-EI, EI, UCB/LCB or a well-justified alternative). Search for acquisition maxima efficiently: use bounded candidates, a modest candidate pool or bounded multi-start optimization.\n- If GP fitting or acquisition optimization fails, fall back to a bounded valid sample rather than crashing; never call func more than budget times.\n- The SAME generated class will later be evaluated at 600 objective calls: avoid expensive kernel hyperparameter optimization at every step as data grows. Refit costly hyperparameters periodically or limit fitting iterations, and reuse/calculate shared quantities where possible. Do not stop querying just because improvements are temporarily flat.\n\nCheck matrix dimensions, scalar conversions, the first post-initialization acquisition step, and the budget before returning the Python class. Provide executable Python code, not pseudocode. Improve the algorithm when LLaMEA feedback reports a specific error or poor convergence.\n\nMandatory interface: one class with __init__(self, budget, dim) and __call__(self, func), returning (best_y, best_x). The six-dimensional minimization objective is callable ONLY as func(x); its bounds are func.bounds.lb and func.bounds.ub. Each invocation must use at most budget black-box function calls including initialization; no file, network or subprocess side effects.\n"
+}

@@ -32,9 +32,51 @@ from src.utils import (DEFAULT_CONFIG, RESULTS, dump_json, group_seeds,
 # Installed library: it handles prompts, LLM calls, ES selection and lineage.
 # Only the checkpoint writer is overridden below (atomic file replacement).
 try:
-    from llamea import LLaMEA
+    from llamea import LLaMEA, Operator
 except ImportError:
-    LLaMEA = None
+    LLaMEA = Operator = None
+
+
+# ---- Operator prompts (LLaMEA `operators=`) ----
+
+GUARD = (" Keep the required interface and use exactly `budget` objective calls. Keep the numerical "
+         "safeguards (jitter, try/except with a bounded fallback query). Start the one-line "
+         "description with '<surrogate> + <acquisition> + <initialization>' so the design is "
+         "visible in the population summary.")
+
+# (name, weight, number_of_parents, prompt)
+NOVELTY = [
+    ("refine", 1.0, 1,
+     "Refine the selected algorithm to converge faster in the first 20-30 evaluations. Keep its "
+     "design, but fix weaknesses in initialization size, acquisition or fallback logic."),
+    ("surrogate", 1.5, 1,
+     "Replace the surrogate with a structurally different one, for example an ARD Matern GP, a "
+     "GP on a log/rank-transformed output, a local GP around the incumbent, or a random-forest / "
+     "ensemble surrogate. Do not just tune parameters."),
+    ("acquisition", 1.5, 1,
+     "Replace the acquisition principle, for example Thompson sampling, UCB with an adaptive beta "
+     "schedule, a portfolio switching between EI and exploitation, or a knowledge-gradient-like rule."),
+    ("trust_region", 1.0, 1,
+     "Add a trust region around the incumbent that shrinks after failures and expands after "
+     "successes, with a restart when it collapses."),
+    ("hybrid", 1.0, 1,
+     "Combine BO with another optimizer, for example a CMA-ES or differential-evolution step to "
+     "maximize the acquisition, or alternate GP-guided and local-search queries."),
+    ("init", 0.5, 1,
+     "Change the initial design and early phase, for example Sobol or Latin hypercube with a "
+     "different size, or stop initial sampling once the surrogate is informative."),
+    ("crossover", 1.0, 2,
+     "Combine the surrogate of one selected algorithm with the acquisition/search strategy of the "
+     "other. The result must be ONE coherent class, not two algorithms glued together."),
+]
+
+def build_operators(variant, n_parents):
+    if variant == "baseline":
+        return []          # LLaMEA default: one 'Refine the strategy...' operator
+    if variant != "novelty":
+        raise ValueError("llamea.operators must be baseline or novelty")
+    return [Operator(prompt=p + GUARD, name=n, weight=w, number_of_parents=k)
+            for n, w, k, p in NOVELTY if k <= n_parents]
 
 
 class AtomicLLaMEA(LLaMEA if LLaMEA is not None else object):
@@ -149,6 +191,14 @@ class CandidateScorer:
             final = float(np.mean([r.best for r in runs]))
             initial = float(np.mean([min(r.ys[:min(8, len(r.ys))]) for r in runs]))
             feedback += f'; mean initial best={initial:.6g}; mean final best={final:.6g}'
+        if good and self.cfg['llamea'].get('feedback', 'basic') == 'rich':
+            # Convergence shape + stability, so the LLM can see WHY a design is weak.
+            marks = [i for i in (10, 20, 40, 60) if all(len(r.ys) >= i for r in runs)]
+            at = ', '.join(f'{i}:{np.mean([min(r.ys[:i]) for r in runs]):.4g}' for i in marks)
+            aoccs = [r.aocc for r in runs]
+            stalled = sum(1 for r in runs if len(r.ys) > 30 and min(r.ys[:30]) == min(r.ys))
+            feedback += (f'; mean best-so-far at eval [{at}]; per-seed AOCC min/max='
+                         f'{min(aoccs):.3f}/{max(aoccs):.3f}; seeds with no improvement after eval 30: {stalled}/10')
         if not good:
             # The previous code sent the FIRST 180 traceback characters (mostly
             # worker paths), hiding the actual exception at the END. Supply the
@@ -218,7 +268,7 @@ class CandidateScorer:
         self._state(count, 'committed', committed=count)
 
 
-def run_target(cfg, target, resume, limit):
+def run_target(cfg, target, resume, limit, tag=None, rep=0):
     """Input: YAML settings, target, resume flag, cumulative limit. Output: Stage 1 files."""
     if LLaMEA is None:
         raise RuntimeError('Install llamea before running Stage 1')
@@ -253,9 +303,12 @@ def run_target(cfg, target, resume, limit):
         "func.bounds.lb and func.bounds.ub. Each invocation must use at most "
         "budget black-box function calls including initialization; no file, "
         "network or subprocess side effects.\n")
-    signature = hashlib.sha256(json.dumps(dict(config=cfg, metric=metric, prompt=prompt),
+    operators = build_operators(es.get('operators', 'baseline'), parents)
+    signature = hashlib.sha256(json.dumps(dict(config=cfg, metric=metric, prompt=prompt,
+        operators=[o.prompt for o in operators], rep=rep),
         sort_keys=True).encode()).hexdigest()
-    target_folder = RESULTS / 'stage1' / target
+    # Experiments go to stage1_runs/<tag>_r<rep>/; the default path stays what Stage 2 reads.
+    target_folder = (RESULTS / 'stage1_runs' / f'{tag}_r{rep}' / target) if tag else (RESULTS / 'stage1' / target)
     if target_folder.is_symlink():
         raise RuntimeError(f'Refusing to overwrite a symlinked results folder: {target_folder}')
     folder = target_folder.resolve()
@@ -312,7 +365,7 @@ def run_target(cfg, target, resume, limit):
         dump_json(config_file, dict(config=cfg, target=target, metric=metric,
                   signature=signature, seeds=group_seeds(cfg), machine=metadata(),
                   prompt=prompt))
-        seed_search(group_seeds(cfg)[0])
+        seed_search(group_seeds(cfg)[0] + rep)  # rep changes only the ES/LLM-side randomness
         scorer = CandidateScorer(cfg, target, folder, metric)
         # Construct in target folder to keep LLaMEA's native conversation logs
         # and llamea_config.pkl under this experiment, not at project root.
@@ -322,6 +375,7 @@ def run_target(cfg, target, resume, limit):
             search = AtomicLLaMEA(f=scorer, llm=llm, task_prompt=prompt,
                 budget=limit, n_parents=parents, n_offspring=offspring, max_workers=1,
                 parent_selection=cfg['llamea']['parent_selection'],
+                tournament_size=int(es.get('tournament_size', 3)), operators=operators,
                 elitism=bool(cfg['llamea']['elitism']), HPO=False,
                 minimization=False, log=True, experiment_name=f'BO_{target}',
                 eval_timeout=10 * float(cfg['stage1']['timeout_seconds']) + 90)
@@ -360,10 +414,24 @@ def main():
     parser.add_argument('--limit', type=int, default=None)
     parser.add_argument('--resume', action='store_true',
                         help='Continue existing search (default: overwrite target Stage 1 results)')
+    parser.add_argument('--tag', default=None, help='Experiment name; output goes to stage1_runs/<tag>_r<rep>/')
+    parser.add_argument('--rep', type=int, default=0, help='Independent repeat index (ES/LLM randomness only)')
+    parser.add_argument('--parents', type=int, default=None)
+    parser.add_argument('--offspring', type=int, default=None)
+    parser.add_argument('--selection', choices=('random', 'roulette', 'tournament'), default=None)
+    parser.add_argument('--tournament-size', type=int, default=None)
+    parser.add_argument('--operators', choices=('baseline', 'novelty'), default=None)
+    parser.add_argument('--feedback', choices=('basic', 'rich'), default=None)
     args = parser.parse_args()
     cfg = load_config(args.config)
+    for key, value in (('n_parents', args.parents), ('n_offspring', args.offspring),
+                       ('parent_selection', args.selection), ('tournament_size', args.tournament_size),
+                       ('operators', args.operators), ('feedback', args.feedback)):
+        if value is not None:
+            cfg['llamea'][key] = value
     run_target(cfg, args.target, args.resume,
-               args.limit if args.limit is not None else int(cfg['stage1']['max_candidates']))
+               args.limit if args.limit is not None else int(cfg['stage1']['max_candidates']),
+               tag=args.tag, rep=args.rep)
 
 
 if __name__ == '__main__':

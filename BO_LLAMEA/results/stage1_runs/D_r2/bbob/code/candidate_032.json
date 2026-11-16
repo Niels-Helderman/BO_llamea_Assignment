@@ -1,0 +1,9 @@
+{
+  "number": 32,
+  "class_name": "BayesianOptimizer",
+  "fitness": 0.0,
+  "valid": false,
+  "generation": 15,
+  "code": "code/candidate_032.py",
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 0 evaluations; location=File \"<generated candidate>\", line 13, in __init__; error=TypeError: Matern.__init__() got an unexpected keyword argument 'length_scale_fixed'"
+}

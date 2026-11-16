@@ -1,0 +1,9 @@
+{
+  "number": 40,
+  "class_name": "BayesianOptimizer",
+  "fitness": 0.416425188566896,
+  "valid": true,
+  "generation": 19,
+  "code": "code/candidate_040.py",
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.416425; valid=True; mean initial best=105.488; mean final best=79.488; mean best-so-far at eval [10:104, 20:92.45, 40:79.49, 60:79.49]; per-seed AOCC min/max=0.390/0.449; seeds with no improvement after eval 30: 0/10"
+}

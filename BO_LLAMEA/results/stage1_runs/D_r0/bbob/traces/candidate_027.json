@@ -1,0 +1,1572 @@
+[
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 90,
+    "budget": 60,
+    "xs": [
+      [
+        -2.064619781449437,
+        1.4153960160911083,
+        4.0479157119989395,
+        4.006992615759373,
+        -3.8589738588780165,
+        -2.1765455696731806
+      ],
+      [
+        4.259281940758228,
+        -4.515628581866622,
+        -3.1052294187247753,
+        -2.844789642840624,
+        0.667223846539855,
+        0.4679010808467865
+      ],
+      [
+        0.06978597491979599,
+        4.760318389162421,
+        2.162758968770504,
+        2.370196897536516,
+        4.947602916508913,
+        4.964183894917369
+      ],
+      [
+        -3.4415108431130648,
+        -1.8163055926561356,
+        -1.2310592271387577,
+        -0.7389769703149796,
+        -0.5258180946111679,
+        -2.630479820072651
+      ],
+      [
+        -4.998668236657977,
+        3.296148106455803,
+        -4.4033364206552505,
+        -2.126697525382042,
+        -2.20712018199265,
+        -0.756995277479291
+      ],
+      [
+        1.4899192936718464,
+        -0.1470643375068903,
+        3.453322220593691,
+        0.9457595832645893,
+        2.9440362099558115,
+        1.841326393187046
+      ],
+      [
+        2.9255186952650547,
+        0.37222527898848057,
+        -1.260378547012806,
+        -4.229878652840853,
+        1.4407555386424065,
+        3.5858871694654226
+      ],
+      [
+        -0.7506928127259016,
+        -3.677524048835039,
+        0.3359994851052761,
+        2.5804578140378,
+        -3.4077064134180546,
+        -4.04512532055378
+      ],
+      [
+        -0.563723286613822,
+        4.181572757661343,
+        -2.1921079885214567,
+        0.4989477898925543,
+        0.6099869310855865,
+        -3.1286406330764294
+      ],
+      [
+        3.4273498319089413,
+        -2.3703319299966097,
+        0.6543297972530127,
+        -1.3479998242110014,
+        -4.853973593562841,
+        4.231797279790044
+      ],
+      [
+        2.3238390497863293,
+        2.1451678592711687,
+        -4.097215076908469,
+        3.3979129139333963,
+        -0.78112349845469,
+        0.9659820608794689
+      ],
+      [
+        -3.854762678965926,
+        -3.80019998177886,
+        2.509388877078891,
+        -4.716058345511556,
+        3.7551449704915285,
+        -1.4442364778369665
+      ],
+      [
+        -2.705630147829652,
+        1.0678150691092014,
+        1.8371473718434572,
+        -3.5986871737986803,
+        3.353139590471983,
+        -4.562819693237543
+      ],
+      [
+        1.115807443857193,
+        -3.0060431640595198,
+        -0.30668736435472965,
+        4.468991840258241,
+        -1.485861949622631,
+        2.8339763823896646
+      ]
+    ],
+    "ys": [
+      126.79689051083129,
+      146.45821856557723,
+      201.7241275006434,
+      114.99110489631404,
+      158.5070372378854,
+      134.0464476277881,
+      154.03767252551688,
+      109.03000460252326,
+      136.39666026425948,
+      122.75839121361264,
+      112.10239485054291,
+      202.88541175681792,
+      191.69591327667186,
+      97.44623609588179
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.15504945899010636,
+    "aocc": null,
+    "warning_count": 9,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      },
+      {
+        "category": "ConvergenceWarning",
+        "message": "The optimal value found for dimension 0 of parameter k2__noise_level is close to the specified lower bound 1e-05. Decreasing the bound and calling fit again may find a better value.",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 91,
+    "budget": 60,
+    "xs": [
+      [
+        3.4932843036949635,
+        -2.5551316887140274,
+        -1.5726243238896132,
+        -3.406966906040907,
+        0.8509501721709967,
+        -1.6468052566051483
+      ],
+      [
+        -3.2891667541116476,
+        3.8075596000999212,
+        2.9603540152311325,
+        2.830318082123995,
+        -3.2485111616551876,
+        0.46790831722319126
+      ],
+      [
+        -0.24570285342633724,
+        -1.1152015253901482,
+        -3.321951637044549,
+        -0.34673829562962055,
+        -0.7599259447306395,
+        3.919603433459997
+      ],
+      [
+        0.4327824153006077,
+        2.3676888924092054,
+        2.12892422452569,
+        0.9233489166945219,
+        3.343195915222168,
+        -2.715678224340081
+      ],
+      [
+        1.3637557160109282,
+        -1.9825780671089888,
+        4.707062607631087,
+        2.2804625425487757,
+        4.190416103228927,
+        -0.24138735607266426
+      ],
+      [
+        -1.8640083074569702,
+        0.7350834645330906,
+        -1.056302022188902,
+        -1.450518062338233,
+        -1.7834423296153545,
+        1.5623567160218954
+      ],
+      [
+        -4.914269521832466,
+        -4.341561933979392,
+        0.22595603950321674,
+        3.973194882273674,
+        -4.296077964827418,
+        2.825159505009651
+      ],
+      [
+        4.3970278184860945,
+        3.0939741991460323,
+        -3.9945146441459656,
+        -4.803101345896721,
+        1.6838829964399338,
+        -4.121101191267371
+      ],
+      [
+        4.065536288544536,
+        -0.5468196980655193,
+        1.0560755990445614,
+        -2.453902531415224,
+        -3.0297210719436407,
+        -3.2606732565909624
+      ],
+      [
+        -3.957149162888527,
+        1.7944075632840395,
+        -4.707599254325032,
+        1.31145803257823,
+        0.4464985802769661,
+        4.479350242763758
+      ],
+      [
+        -2.156417667865753,
+        -3.1290394254028797,
+        3.9944452419877052,
+        -3.7900369707494974,
+        2.937486870214343,
+        1.1337507236748934
+      ],
+      [
+        2.2818332444876432,
+        4.376534456387162,
+        -0.2263446059077978,
+        4.932443415746093,
+        -0.5399543233215809,
+        -2.3762305453419685
+      ],
+      [
+        0.7653730548918247,
+        -4.935290003195405,
+        -2.960732914507389,
+        3.2628237921744585,
+        -1.9923511799424887,
+        -4.979907004162669
+      ],
+      [
+        -1.2026253249496222,
+        3.682802766561508,
+        1.5725455526262522,
+        -2.998674986883998,
+        4.604593925178051,
+        3.698527105152607
+      ]
+    ],
+    "ys": [
+      137.9257130409189,
+      131.3850472656226,
+      107.44971114329155,
+      147.3214871261677,
+      158.6947432376188,
+      101.12083248493286,
+      129.7150274498674,
+      210.5529645201251,
+      130.55556140905225,
+      148.26332507235261,
+      176.16298332823828,
+      136.00859338909422,
+      130.6494030243829,
+      198.25068073973608
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.15552207999280654,
+    "aocc": null,
+    "warning_count": 9,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      },
+      {
+        "category": "ConvergenceWarning",
+        "message": "The optimal value found for dimension 0 of parameter k2__noise_level is close to the specified lower bound 1e-05. Decreasing the bound and calling fit again may find a better value.",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 92,
+    "budget": 60,
+    "xs": [
+      [
+        1.0868354886770248,
+        0.21500925533473492,
+        -3.0232417304068804,
+        0.228990251198411,
+        0.11881458573043346,
+        -3.289538947865367
+      ],
+      [
+        -4.077487178146839,
+        -3.968305103480816,
+        3.78990575671196,
+        -1.805654838681221,
+        -4.660697113722563,
+        3.6004801746457815
+      ],
+      [
+        -1.7972628585994244,
+        3.800410842522979,
+        -0.4144991934299469,
+        4.568934151902795,
+        -1.3516152743250132,
+        0.7203540485352278
+      ],
+      [
+        3.659990783780813,
+        -0.05339019000530243,
+        1.522968439385295,
+        -3.7139561772346497,
+        3.3891319297254086,
+        -1.0318948980420828
+      ],
+      [
+        4.442919567227364,
+        3.3240924403071404,
+        3.6996601335704327,
+        -4.104338549077511,
+        4.357909299433231,
+        -4.923705505207181
+      ],
+      [
+        -0.08019033819437027,
+        -2.0726771373301744,
+        -4.485862581059337,
+        2.615822898223996,
+        -1.0871979128569365,
+        4.612077930942178
+      ],
+      [
+        -2.6729178242385387,
+        1.9463439285755157,
+        0.9886911232024431,
+        -0.9461135044693947,
+        -3.0512461066246033,
+        2.199289845302701
+      ],
+      [
+        2.182262446731329,
+        -3.1940017733722925,
+        -2.0776219852268696,
+        2.025955291464925,
+        2.276356527581811,
+        -1.8882833514362574
+      ],
+      [
+        1.723222378641367,
+        4.773521842435002,
+        0.33764499239623547,
+        3.5958788823336363,
+        -4.20857097953558,
+        -0.3916141949594021
+      ],
+      [
+        -3.7374641187489033,
+        -1.0211910121142864,
+        -1.436205804347992,
+        -4.683959688991308,
+        1.2462971080094576,
+        0.08242741227149963
+      ],
+      [
+        -1.0079066455364227,
+        1.2097992096096277,
+        3.1002244353294373,
+        1.7638694029301405,
+        2.8976544737815857,
+        2.9786304011940956
+      ],
+      [
+        4.159849621355534,
+        -4.9583725817501545,
+        -3.8765303511172533,
+        -0.2640618197619915,
+        -2.439708998426795,
+        -2.6700647361576557
+      ],
+      [
+        2.751921508461237,
+        1.6665748693048954,
+        -1.0729599185287952,
+        -1.9048256613314152,
+        -0.28199982829391956,
+        -1.2591302767395973
+      ],
+      [
+        -2.0999771542847157,
+        -2.9195655416697264,
+        2.1520013827830553,
+        1.0605292674154043,
+        4.507282245904207,
+        1.5676306746900082
+      ]
+    ],
+    "ys": [
+      111.96652418952857,
+      154.3532114150583,
+      117.18125418865182,
+      168.17714105008156,
+      251.35825953364258,
+      115.00910534607591,
+      112.08911832682868,
+      119.18579972388576,
+      123.74944534736615,
+      155.17406823564932,
+      138.88914287034186,
+      133.65921350715257,
+      117.13568505212749,
+      150.0859009334035
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.1559577190055279,
+    "aocc": null,
+    "warning_count": 9,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      },
+      {
+        "category": "ConvergenceWarning",
+        "message": "The optimal value found for dimension 0 of parameter k2__noise_level is close to the specified lower bound 1e-05. Decreasing the bound and calling fit again may find a better value.",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 93,
+    "budget": 60,
+    "xs": [
+      [
+        -3.115319022908807,
+        0.8475263230502605,
+        4.2173705250024796,
+        2.440802864730358,
+        -2.5370858889073133,
+        1.3444350380450487
+      ],
+      [
+        3.5522370785474777,
+        -2.4555425718426704,
+        -4.688406279310584,
+        -4.033461809158325,
+        2.4298004154115915,
+        -3.66462423466146
+      ],
+      [
+        0.563630610704422,
+        3.1443191412836313,
+        2.2698107082396746,
+        3.5380489006638527,
+        4.073448199778795,
+        -2.2629964910447598
+      ],
+      [
+        -1.064864182844758,
+        -4.807187216356397,
+        -1.6370270773768425,
+        -0.14393769204616547,
+        -0.8800097741186619,
+        2.747248765081167
+      ],
+      [
+        -2.423472609370947,
+        4.223533906042576,
+        -2.843454657122493,
+        -1.9334955606609583,
+        -1.8314479012042284,
+        0.18365932628512383
+      ],
+      [
+        1.68533724732697,
+        -2.790780011564493,
+        3.5635140910744667,
+        4.072704939171672,
+        3.1302504893392324,
+        -4.806095194071531
+      ],
+      [
+        4.986453698948026,
+        1.633853344246745,
+        -0.9825555235147476,
+        -3.342536622658372,
+        0.24755027145147324,
+        -1.2194088753312826
+      ],
+      [
+        -4.161419849842787,
+        -0.10702311061322689,
+        0.4230137262493372,
+        0.49501399509608746,
+        -4.71048541367054,
+        3.771531628444791
+      ],
+      [
+        -4.904583813622594,
+        3.0991325806826353,
+        -0.20196589641273022,
+        4.84432372264564,
+        1.5523813292384148,
+        3.197437087073922
+      ],
+      [
+        4.087191112339497,
+        -3.9148738142102957,
+        0.8924289420247078,
+        -1.454844931140542,
+        -3.495686575770378,
+        -1.811543582007289
+      ],
+      [
+        2.349233292043209,
+        0.41423600167036057,
+        -3.3114632219076157,
+        0.9736991953104734,
+        -0.587370665743947,
+        -2.905061785131693
+      ],
+      [
+        -1.603480326011777,
+        -1.3263328559696674,
+        2.7815273497253656,
+        -2.5708808843046427,
+        4.444827502593398,
+        2.1051051653921604
+      ],
+      [
+        -0.47917867079377174,
+        2.1477475855499506,
+        1.487990841269493,
+        -4.492274820804596,
+        2.8778408654034138,
+        4.6490453369915485
+      ],
+      [
+        0.9929123613983393,
+        -1.1556288320571184,
+        -2.105212053284049,
+        1.649956814944744,
+        -2.165038976818323,
+        -0.34078793600201607
+      ]
+    ],
+    "ys": [
+      120.36340695419003,
+      186.24909718991142,
+      162.5582908922786,
+      108.23141687084296,
+      135.76800982664037,
+      168.47288507884588,
+      148.8299862352881,
+      118.65593174387628,
+      158.5060643835414,
+      121.56507297931716,
+      109.51232467952809,
+      169.01858271579184,
+      185.64940348867435,
+      82.8863258631717
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.16645605300436728,
+    "aocc": null,
+    "warning_count": 9,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      },
+      {
+        "category": "ConvergenceWarning",
+        "message": "The optimal value found for dimension 0 of parameter k2__noise_level is close to the specified lower bound 1e-05. Decreasing the bound and calling fit again may find a better value.",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 94,
+    "budget": 60,
+    "xs": [
+      [
+        -3.5556289926171303,
+        2.37780905328691,
+        -2.361794924363494,
+        4.844171851873398,
+        -4.670136086642742,
+        0.9823087602853775
+      ],
+      [
+        0.6520326342433691,
+        -1.0289683565497398,
+        3.0266178119927645,
+        -2.7613345813006163,
+        3.7195853795856237,
+        -2.8858250100165606
+      ],
+      [
+        2.97362107783556,
+        4.239475624635816,
+        -2.856398867443204,
+        1.7206662427634,
+        2.1601112838834524,
+        -0.491086570546031
+      ],
+      [
+        -0.29921465553343296,
+        -2.8930021263659,
+        2.1903695818036795,
+        -0.8885023184120655,
+        -1.2490998581051826,
+        3.6070637963712215
+      ],
+      [
+        -1.92951082251966,
+        2.9589527752250433,
+        3.9793974347412586,
+        -2.0812435168772936,
+        -2.408342147246003,
+        1.3873796351253986
+      ],
+      [
+        4.797706175595522,
+        -4.266288913786411,
+        -0.8133109100162983,
+        0.6234445236623287,
+        0.823034755885601,
+        -4.502176409587264
+      ],
+      [
+        1.5034449938684702,
+        1.0899619478732347,
+        0.6528575718402863,
+        -3.9565933495759964,
+        4.898373372852802,
+        -2.1172516886144876
+      ],
+      [
+        -4.288936015218496,
+        -2.399813700467348,
+        -3.8177377358078957,
+        3.7493154127150774,
+        -3.3525671157985926,
+        4.022024087607861
+      ],
+      [
+        -4.750734651461244,
+        4.499069331213832,
+        0.5441371537744999,
+        1.1585239507257938,
+        3.0615761317312717,
+        2.5630024820566177
+      ],
+      [
+        1.9594434276223183,
+        -3.345545679330826,
+        -4.878455940634012,
+        -1.5275465045124292,
+        -4.017143836244941,
+        -0.6777614075690508
+      ],
+      [
+        4.317578068003058,
+        1.3851925823837519,
+        4.708251282572746,
+        3.033264586701989,
+        -0.5717355664819479,
+        -3.287839023396373
+      ],
+      [
+        -1.4527412131428719,
+        -0.2340271882712841,
+        -0.37269752472639084,
+        -4.651585184037685,
+        1.4874968118965626,
+        0.19257357344031334
+      ],
+      [
+        -0.7808663509786129,
+        0.16813675872981548,
+        -3.292111149057746,
+        -3.317547058686614,
+        0.16741030849516392,
+        4.814010132104158
+      ],
+      [
+        3.4488671366125345,
+        -1.3582810014486313,
+        1.4566527027636766,
+        4.311455003917217,
+        -1.7577716521918774,
+        -1.7175642307847738
+      ]
+    ],
+    "ys": [
+      121.92578253635784,
+      167.7184414261202,
+      144.8919644251411,
+      111.30146945372647,
+      140.33833332235218,
+      148.2048216796706,
+      186.5767139273695,
+      127.83458237196972,
+      176.18744298903772,
+      119.40590769120716,
+      151.53762290797113,
+      144.0692059086919,
+      143.6493648213809,
+      105.6827865955105
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.1486137360043358,
+    "aocc": null,
+    "warning_count": 8,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 95,
+    "budget": 60,
+    "xs": [
+      [
+        -1.7789390590041876,
+        2.4807143211364746,
+        2.058265469968319,
+        -4.5211447682231665,
+        1.9439306017011404,
+        1.6196551453322172
+      ],
+      [
+        2.6424797996878624,
+        -3.249245649203658,
+        -3.344765780493617,
+        2.2099254466593266,
+        -4.184419838711619,
+        -1.2235269043594599
+      ],
+      [
+        1.7939779255539179,
+        4.124168744310737,
+        3.4278700314462185,
+        -1.4465026371181011,
+        -2.2386467456817627,
+        -3.8430005963891745
+      ],
+      [
+        -2.646898366510868,
+        -0.20446503534913063,
+        -2.141369665041566,
+        4.3031293991953135,
+        3.889701459556818,
+        3.2918446976691484
+      ],
+      [
+        -3.7786098569631577,
+        3.2505463995039463,
+        -4.424174232408404,
+        3.7302142195403576,
+        2.754777306690812,
+        1.0634823329746723
+      ],
+      [
+        0.569578604772687,
+        -2.4842992145568132,
+        0.6376701965928078,
+        -0.7936700712889433,
+        -1.1073355097323656,
+        -1.762342844158411
+      ],
+      [
+        3.783574476838112,
+        0.20072762854397297,
+        -0.7110090646892786,
+        0.3815260250121355,
+        -3.048283327370882,
+        -3.1320644915103912
+      ],
+      [
+        -0.5840669106692076,
+        -4.1230205073952675,
+        4.49751315638423,
+        -2.614049855619669,
+        0.8138317242264748,
+        3.9859579876065254
+      ],
+      [
+        -0.6501369923353195,
+        4.765654802322388,
+        -0.5502348206937313,
+        -0.4177206754684448,
+        -4.7849927097558975,
+        2.732367357239127
+      ],
+      [
+        4.943090574815869,
+        -0.8862206991761923,
+        4.337049378082156,
+        2.563268793746829,
+        1.2747670896351337,
+        -4.52495832927525
+      ],
+      [
+        0.654875710606575,
+        1.7220359947532415,
+        -4.273669272661209,
+        -3.5955193359404802,
+        4.490109821781516,
+        -0.5818514805287123
+      ],
+      [
+        -4.9579609464854,
+        -2.5284322537481785,
+        0.48685462214052677,
+        0.9040319174528122,
+        -1.5696525108069181,
+        2.21697517670691
+      ],
+      [
+        -3.655657758936286,
+        0.8873617090284824,
+        2.9646754544228315,
+        1.5017701592296362,
+        -0.5164949037134647,
+        4.677414055913687
+      ],
+      [
+        2.0205705985426903,
+        -4.769394667819142,
+        -1.677857469767332,
+        -4.272032789885998,
+        3.4332820400595665,
+        -2.562554758042097
+      ]
+    ],
+    "ys": [
+      168.93291621242844,
+      101.54323167286518,
+      156.89109868212108,
+      147.7620431071999,
+      162.03723189711167,
+      97.91811116289992,
+      109.06502809576527,
+      161.65063796897635,
+      130.582105664474,
+      167.86124042079263,
+      183.48560045766766,
+      115.4199434147654,
+      135.36795118933787,
+      181.37879706639944
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.16393898898968473,
+    "aocc": null,
+    "warning_count": 9,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      },
+      {
+        "category": "ConvergenceWarning",
+        "message": "The optimal value found for dimension 0 of parameter k2__noise_level is close to the specified lower bound 1e-05. Decreasing the bound and calling fit again may find a better value.",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 96,
+    "budget": 60,
+    "xs": [
+      [
+        0.04387538880109787,
+        0.46710507944226265,
+        -0.00015545636415481567,
+        -0.1981031708419323,
+        -4.389748992398381,
+        -3.1472192984074354
+      ],
+      [
+        -1.7337249405682087,
+        -2.7001658733934164,
+        3.391254423186183,
+        1.6327717620879412,
+        3.880006168037653,
+        4.915493633598089
+      ],
+      [
+        -2.73166436702013,
+        4.139624936506152,
+        -3.629541527479887,
+        -3.120502755045891,
+        0.22668997757136822,
+        0.09251308627426624
+      ],
+      [
+        4.085019361227751,
+        -1.5264159440994263,
+        0.39969933219254017,
+        3.8763853069394827,
+        -0.8973742835223675,
+        -1.8399018980562687
+      ],
+      [
+        2.676679929718375,
+        3.5162858199328184,
+        4.908805172890425,
+        3.043321678414941,
+        -2.4382674507796764,
+        -4.001057334244251
+      ],
+      [
+        -4.139448879286647,
+        -0.81766277551651,
+        -1.6985610034316778,
+        -3.797373194247484,
+        1.7724272143095732,
+        2.93623230420053
+      ],
+      [
+        -0.017751017585396767,
+        2.18873905017972,
+        1.2991026043891907,
+        0.2771721314638853,
+        2.959961835294962,
+        2.056047134101391
+      ],
+      [
+        1.7593361157923937,
+        -4.643998211249709,
+        -4.670431921258569,
+        -1.7100096866488457,
+        -3.474548729136586,
+        -1.0115353111177683
+      ],
+      [
+        1.9185107294470072,
+        4.377081813290715,
+        2.1054039523005486,
+        -4.563531139865518,
+        4.784100269898772,
+        -2.0539804361760616
+      ],
+      [
+        -1.1084840167313814,
+        -2.45717192068696,
+        -3.8751326221972704,
+        3.4395308792591095,
+        -4.1134254820644855,
+        1.0088010225445032
+      ],
+      [
+        -4.606409138068557,
+        0.7034199312329292,
+        4.103763867169619,
+        -2.427254868671298,
+        -0.6183041725307703,
+        3.998280558735132
+      ],
+      [
+        3.459659470245242,
+        -3.629622468724847,
+        -2.4950440507382154,
+        0.7418062724173069,
+        1.128037478774786,
+        -2.9340468253940344
+      ],
+      [
+        4.551896993070841,
+        1.3276340439915657,
+        -2.824500221759081,
+        2.350073866546154,
+        2.048769649118185,
+        -0.09403158910572529
+      ],
+      [
+        -3.5148469358682632,
+        -4.33933169580996,
+        1.1961823794990778,
+        -0.6627942342311144,
+        -1.5341922733932734,
+        1.8431942164897919
+      ]
+    ],
+    "ys": [
+      102.98109188908053,
+      165.91117833705943,
+      158.92623343868365,
+      107.74257681306861,
+      159.94364037734428,
+      158.6646159537094,
+      131.9911148372085,
+      125.44267273894208,
+      224.94385781002057,
+      97.62012426350695,
+      165.73488977459343,
+      126.30469503756592,
+      131.37941319505927,
+      117.48060761995796
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.1505165010021301,
+    "aocc": null,
+    "warning_count": 8,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 97,
+    "budget": 60,
+    "xs": [
+      [
+        -3.589912559837103,
+        -2.274465197697282,
+        0.6729467213153839,
+        0.5644067749381065,
+        0.9460347052663565,
+        2.0694363582879305
+      ],
+      [
+        2.153292940929532,
+        4.451303770765662,
+        -4.87360536120832,
+        -2.4765263311564922,
+        -0.7320419419556856,
+        -1.1234621796756983
+      ],
+      [
+        4.588062325492501,
+        -4.662632429972291,
+        3.275636024773121,
+        3.9599713031202555,
+        -3.5126518830657005,
+        -3.7458376586437225
+      ],
+      [
+        -0.9981301613152027,
+        2.365870615467429,
+        -2.4271612893790007,
+        -3.299082303419709,
+        3.257894292473793,
+        4.682046417146921
+      ],
+      [
+        -1.3241347204893827,
+        -2.534862207248807,
+        -3.579653110355139,
+        -4.784449012950063,
+        4.792474070563912,
+        0.0362611748278141
+      ],
+      [
+        3.0122105218470097,
+        0.43602350167930126,
+        2.123115612193942,
+        2.946711601689458,
+        -4.380736974999309,
+        -1.5950578451156616
+      ],
+      [
+        0.6041455082595348,
+        -0.527430372312665,
+        -0.9867198951542377,
+        -0.6801852025091648,
+        -2.322478573769331,
+        -4.2168226931244135
+      ],
+      [
+        -3.8889075722545385,
+        2.746190009638667,
+        4.559784522280097,
+        1.269134059548378,
+        1.9529653899371624,
+        2.6482607889920473
+      ],
+      [
+        -4.669969491660595,
+        -3.775876984000206,
+        -0.1498387660831213,
+        3.470832295715809,
+        -0.18343915231525898,
+        4.342934051528573
+      ],
+      [
+        1.0724016558378935,
+        1.695009022951126,
+        4.303652048110962,
+        -4.133109208196402,
+        0.5554602202028036,
+        -2.7766612637788057
+      ],
+      [
+        3.4813822712749243,
+        -1.789168193936348,
+        -2.5471446942538023,
+        2.0227851066738367,
+        2.7113740891218185,
+        -0.1640516147017479
+      ],
+      [
+        -2.105501890182495,
+        3.9844518899917603,
+        1.7500913515686989,
+        -0.11173875071108341,
+        -3.1206027790904045,
+        1.7205585353076458
+      ],
+      [
+        -0.5294967163354158,
+        -1.033325307071209,
+        2.8632162045687437,
+        -1.751066641882062,
+        -3.9908148627728224,
+        3.5635736398398876
+      ],
+      [
+        3.807234652340412,
+        3.192443363368511,
+        -1.4339912496507168,
+        1.1631814111024141,
+        4.243216523900628,
+        -4.492611102759838
+      ]
+    ],
+    "ys": [
+      115.11370156219022,
+      157.38725731014048,
+      148.9043787930433,
+      176.93029383351472,
+      193.06821275162025,
+      105.8065269087069,
+      108.66979951906454,
+      166.56918128221596,
+      134.76410670333922,
+      171.09464241946912,
+      123.07623359810437,
+      123.58450256514075,
+      117.976964734671,
+      184.3812792971369
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.15935253399948124,
+    "aocc": null,
+    "warning_count": 9,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      },
+      {
+        "category": "ConvergenceWarning",
+        "message": "The optimal value found for dimension 0 of parameter k2__noise_level is close to the specified lower bound 1e-05. Decreasing the bound and calling fit again may find a better value.",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 98,
+    "budget": 60,
+    "xs": [
+      [
+        0.10391895659267902,
+        -3.0664779525250196,
+        4.044553944841027,
+        4.8903588950634,
+        1.2941943015903234,
+        0.035130418837070465
+      ],
+      [
+        -2.881140122190118,
+        0.5443914793431759,
+        -4.580650106072426,
+        -4.4693405367434025,
+        -1.538607245311141,
+        -3.072343049570918
+      ],
+      [
+        -1.3411005958914757,
+        -1.8492638505995274,
+        1.2739001493901014,
+        2.0075125340372324,
+        -2.544293077662587,
+        -1.4025534596294165
+      ],
+      [
+        4.110997598618269,
+        4.227383704856038,
+        -1.9661699794232845,
+        -2.3534195218235254,
+        2.788169579580426,
+        4.283307418227196
+      ],
+      [
+        2.689660070464015,
+        -0.8970928564667702,
+        -3.2732256315648556,
+        -0.2431258838623762,
+        4.211459225043654,
+        1.80704852566123
+      ],
+      [
+        -0.6131224986165762,
+        3.343649571761489,
+        2.5394757371395826,
+        0.36657835356891155,
+        -4.28023531101644,
+        -3.7503808829933405
+      ],
+      [
+        -3.912195395678282,
+        -4.6533379796892405,
+        -0.8150739222764969,
+        -2.8290190920233727,
+        -0.4620163608342409,
+        -0.5180844385176897
+      ],
+      [
+        1.8478647619485855,
+        2.0434359833598137,
+        0.23749769665300846,
+        2.781898695975542,
+        0.5299508292227983,
+        2.6177228428423405
+      ],
+      [
+        1.9288757536560297,
+        -2.423809114843607,
+        -0.39559039287269115,
+        0.8064186666160822,
+        -2.1763460244983435,
+        4.803559333086014
+      ],
+      [
+        -4.767117844894528,
+        4.897984238341451,
+        0.9731045737862587,
+        -1.0937141720205545,
+        1.951321130618453,
+        -2.0593691524118185
+      ],
+      [
+        -0.6880325078964233,
+        -3.7444313149899244,
+        -3.01609561778605,
+        3.5525380820035934,
+        3.4260561782866716,
+        -3.514617932960391
+      ],
+      [
+        3.5531299747526646,
+        1.1212541721761227,
+        3.749936129897833,
+        -3.3463812060654163,
+        -3.2018729019910097,
+        0.9267742559313774
+      ],
+      [
+        4.651324367150664,
+        -4.0032795909792185,
+        2.436752524226904,
+        -4.362315721809864,
+        -4.89372200332582,
+        3.2952952571213245
+      ],
+      [
+        -2.3623986821621656,
+        1.4483867213129997,
+        -1.744439760223031,
+        3.7878314591944218,
+        4.805557867512107,
+        -1.0200305748730898
+      ]
+    ],
+    "ys": [
+      130.6370464280273,
+      161.61041907072763,
+      89.90889948998421,
+      187.90175438002873,
+      146.0653754991531,
+      133.6779668664218,
+      137.5146640231876,
+      108.97698044762672,
+      104.55885928796677,
+      181.0406348668701,
+      147.88539764232476,
+      143.8892805192982,
+      169.52206852997918,
+      155.78739437271588
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.14929163199849427,
+    "aocc": null,
+    "warning_count": 9,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      },
+      {
+        "category": "ConvergenceWarning",
+        "message": "The optimal value found for dimension 0 of parameter k2__noise_level is close to the specified lower bound 1e-05. Decreasing the bound and calling fit again may find a better value.",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "algorithm": "BayesianOptimizer",
+    "problem": "bbob",
+    "seed": 99,
+    "budget": 60,
+    "xs": [
+      [
+        4.9389322474598885,
+        3.6159469559788704,
+        1.4924189820885658,
+        4.405478909611702,
+        3.722322750836611,
+        4.298661574721336
+      ],
+      [
+        -2.912434060126543,
+        -3.753701327368617,
+        -1.741124615073204,
+        -1.8799995072185993,
+        -4.756475361064076,
+        -0.4520209226757288
+      ],
+      [
+        -0.9560450352728367,
+        0.22984089329838753,
+        2.9979560151696205,
+        0.10929063893854618,
+        -0.012503024190664291,
+        -3.72386428527534
+      ],
+      [
+        1.7420468851923943,
+        -2.242956506088376,
+        -2.738257870078087,
+        -2.58472659625113,
+        1.5184621047228575,
+        2.296962533146143
+      ],
+      [
+        0.13783667236566544,
+        1.489515220746398,
+        -0.9417074825614691,
+        -4.428374143317342,
+        1.0895464196801186,
+        3.1218678317964077
+      ],
+      [
+        -2.164072562009096,
+        -1.0413493402302265,
+        0.7320446986705065,
+        1.94255237467587,
+        -2.3991249036043882,
+        -1.6581065859645605
+      ],
+      [
+        -3.9674494601786137,
+        4.973544189706445,
+        -4.475137582048774,
+        -0.13035451993346214,
+        -2.6951779797673225,
+        -4.949414702132344
+      ],
+      [
+        3.1811853870749474,
+        -2.650703862309456,
+        4.695791723206639,
+        2.6442280039191246,
+        3.8454499561339617,
+        1.0616420581936836
+      ],
+      [
+        3.1166983116418123,
+        0.9441669471561909,
+        -3.7600886542350054,
+        1.739951716735959,
+        -3.8806543592363596,
+        1.656888471916318
+      ],
+      [
+        -4.810903528705239,
+        -1.431050794199109,
+        4.175419947132468,
+        -4.235466988757253,
+        2.7280936203897,
+        -3.1230912916362286
+      ],
+      [
+        -1.6357184294611216,
+        2.5525665655732155,
+        -0.42141792364418507,
+        3.6916273459792137,
+        2.3539999034255743,
+        -1.0628649592399597
+      ],
+      [
+        1.1424237210303545,
+        -4.914813963696361,
+        0.017066141590476036,
+        -1.187447365373373,
+        -1.0470153577625751,
+        4.948196029290557
+      ],
+      [
+        1.958162086084485,
+        3.8518373761326075,
+        3.6885408125817776,
+        -1.7603345401585102,
+        -1.561078717932105,
+        0.4507982265204191
+      ],
+      [
+        -0.2636945340782404,
+        -3.6746784299612045,
+        -3.3122523687779903,
+        4.295651689171791,
+        0.05740836262702942,
+        -4.299880154430866
+      ]
+    ],
+    "ys": [
+      191.17271889976502,
+      116.86852578815932,
+      124.46983528963395,
+      128.3701740290722,
+      148.33897059494265,
+      91.93296467502765,
+      182.21027283946995,
+      163.15598169695386,
+      104.27098862919065,
+      209.1152769733963,
+      127.61889488144206,
+      127.6396212067801,
+      141.7911464709188,
+      128.35554803020594
+    ],
+    "status": "error",
+    "error": "Traceback (most recent call last):\n  File \"/home/s4968964/BO_llamea_Assignment/BO_LLAMEA/src/performance.py\", line 202, in _execute\n    optimizer(objective)\n  File \"<generated candidate>\", line 61, in __call__\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_minimize.py\", line 784, in minimize\n    res = _minimize_lbfgsb(fun, x0, args, jac, bounds,\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_lbfgsb_py.py\", line 469, in _minimize_lbfgsb\n    f, g = func_and_grad(x)\n           ^^^^^^^^^^^^^^^^\n  File \"/tmp/s4968964_venv/lib/python3.11/site-packages/scipy/optimize/_differentiable_functions.py\", line 412, in fun_and_grad\n    self._update_fun()\nValueError: Input X contains NaN.\nGaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values\n",
+    "seconds": 0.146095650998177,
+    "aocc": null,
+    "warning_count": 9,
+    "warnings": [
+      {
+        "category": "RuntimeWarning",
+        "message": "invalid value encountered in log",
+        "count": 7
+      },
+      {
+        "category": "UserWarning",
+        "message": "The balance properties of Sobol' points require n to be a power of 2.",
+        "count": 1
+      },
+      {
+        "category": "ConvergenceWarning",
+        "message": "The optimal value found for dimension 0 of parameter k2__noise_level is close to the specified lower bound 1e-05. Decreasing the bound and calling fit again may find a better value.",
+        "count": 1
+      }
+    ]
+  }
+]
