@@ -1,5 +1,6 @@
 {
-  "candidate": 88,
-  "phase": "evaluating",
-  "last_evaluated": 87
+  "candidate": 92,
+  "phase": "code_generated",
+  "last_evaluated": 91,
+  "source": "code/candidate_092.py"
 }
