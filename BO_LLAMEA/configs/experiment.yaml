@@ -1,16 +1,16 @@
-# Set your assigned group ID and the two fixed target IDs before searching.
+# Benchmark identifiers and dimensionality.
 group_id: 9
 dimension: 6
 problems:
   bbob: {fid: 1, instance: 1}
   realworld: {problem_id: 1124}
 
-# Use a model permitted by the course guidelines.
+# Language model used for code generation.
 llm:
   provider: gemini              # gemini | ollama
   model: gemini-3.1-flash-lite  # Availability can change
 
-# Elitist evolutionary search settings.
+# LLaMEA population, selection and mutation settings.
 llamea:
   n_parents: 2                  # 1..4; initial population size
   n_offspring: 2                # 1..4; number generated per generation
@@ -35,23 +35,22 @@ stage1:
   timeout_seconds: 240         # Hard wall time per seed, in seconds
   progress_every: 2
   aocc:
-    # Normalized log-regret AOCC: log10((best - reference) / scale).
-    # This is a documented project metric; confirm course-specific requirements.
-    # Set scale to null for the paper's unscaled log-precision AOCC.
-    # Keep auto (or a positive number) for the existing scaled metric.
+    # AOCC transforms best-so-far error into a clipped logarithmic score.
+    # Scaled mode uses log10((best - reference) / scale).
+    # Unscaled mode uses log10(best - reference).
     lower_log10_error: -8
     upper_log10_error: 2
     bbob_reference: auto       # IOH provides instance-specific optimum
-    realworld_reference: auto  # Auto justified ONLY for real-world ID 1124
-    scale: auto                # auto/number = scaled metric; null = paper metric
-    calibration_points: 32     # Extra setup-only objective calls, logged separately
+    realworld_reference: auto  # Automatic reference available for problem 1124
+    scale: auto                # auto/positive number = scaled; null = unscaled
+    calibration_points: 32     # Separate fixed-seed calibration queries
     calibration_seed: 2026
 
 stage2:
   budget: 600                  # CLI --budget overrides the per-run budget
   seed_workers: 4
-  timeout_seconds: 1800        # Per run; adjust if valid optimizers time out
-  botorch_initial_points: 12  # Example baseline; verify instructor's settings
+  timeout_seconds: 1800        # Maximum wall time per seeded run
+  botorch_initial_points: 12  # Initial Sobol design size in BoTorch baseline
   ioh_logging: false
 
 prompts:

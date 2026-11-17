@@ -41,7 +41,7 @@ def summarize(runs, problem: str) -> dict:
 
 
 def main():
-    """Development budgets are allowed; every selected output records its budget."""
+    """Save each benchmark under its configured or overridden evaluation budget."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config', default=str(DEFAULT_CONFIG))
     p.add_argument('--budget', type=int, default=None,
@@ -66,11 +66,11 @@ def main():
                   Algorithm('cmaes'), Algorithm('botorch',
                   options={'n_initial': int(stage['botorch_initial_points'])})]
 
-    # Separate results by evaluation budget.
+    # Isolate results for each evaluation budget.
     out = RESULTS / 'stage2' / f'budget_{budget:04d}'
     if out.is_symlink():
         raise RuntimeError(f'Refusing to overwrite symlink: {out}')
-    # Validate/retrieve both metrics before replacing an earlier run.
+    # Resolve both metrics before replacing existing benchmark output.
     metrics = {target: metric_for_target(cfg, target, RESULTS / 'calibration')
                for target in ('bbob', 'realworld')}
     if out.exists():
@@ -110,7 +110,7 @@ def main():
                     final_best=run.best, aocc=run.aocc,
                     warning_count=run.warning_count,
                     warnings=json.dumps(run.warnings, ensure_ascii=False)))
-            # Save after each method to retain completed benchmark results.
+            # Persist each completed method/problem evaluation.
             save_csv(out / f'{target}_runs.csv', all_rows, columns)
             save_csv(out / f'{target}_statuses.csv', statuses)
             dump_json(out / f'{target}_results.json', [r.to_dict() for r in all_runs])

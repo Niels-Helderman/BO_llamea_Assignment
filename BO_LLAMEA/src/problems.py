@@ -30,13 +30,13 @@ def from_config(cfg: dict, kind: str) -> ProblemSpec:
         if pid not in (1124, 1125, 1129, 1130):
             raise ValueError('This real-world problem ID does not support dimension 6')
         return ProblemSpec(kind, d, problem_id=pid)
-    if kind == 'sphere':  # offline dependency-free smoke testing only
+    if kind == 'sphere':  # Internal synthetic objective
         return ProblemSpec(kind, d)
     raise ValueError(f'Unknown problem kind: {kind}')
 
 
 class _Sphere:
-    """Six-dimensional toy objective; never used for actual assignment results."""
+    """Synthetic sphere objective used for evaluator checks."""
     def __init__(self, dim: int):
         self.bounds = type('Bounds', (), {'lb': np.full(dim, -5.), 'ub': np.full(dim, 5.)})()
         self.optimum = type('Optimum', (), {'y': 0.})()
@@ -72,8 +72,8 @@ def known_optimum(spec: ProblemSpec) -> float | None:
     """Return a justified fixed AOCC reference, or None if unavailable.
 
     IOH's BBOB problems expose their actual instance-specific optima. However,
-    Practical_Problems hardcodes ``optimum.y = 0`` as a PLACEHOLDER for every
-    real-world problem. Do not treat that placeholder as a known optimum.
+    Practical_Problems supplies ``optimum.y = 0`` as a placeholder for every
+    real-world problem; it is not generally a known optimum.
 
     Exception: problem 1124 (Frequency Modulated Sound Waves) explicitly sums
     squared residuals, so 0 is a proven lower bound and usable AOCC reference.
@@ -97,9 +97,8 @@ def metric_for_target(cfg: dict, kind: str, cache_dir) -> dict:
     wrapper. Estimate it once from a logged, fixed-seed space-filling
     design, not from any candidate algorithm's trajectory. Calibration calls
     are setup overhead, outside each independently counted optimizer run.
-    When ``stage1.aocc.scale`` is ``auto`` or a positive number, the
-    existing scaled metric is used. When it is ``null``, no calibration is
-    performed and the paper's unscaled log-precision metric is selected.
+    A positive or automatic scale enables calibrated AOCC; a null scale
+    selects unscaled log-error AOCC without calibration.
     """
     from dataclasses import asdict
     import hashlib
@@ -149,8 +148,7 @@ def metric_for_target(cfg: dict, kind: str, cache_dir) -> dict:
         problem = make_problem(spec)
         lb, ub = bounds_of(problem, spec.dimension)
         rng = np.random.default_rng(seed)
-        # Independent deterministic calibration design. NEVER re-use evaluation
-        # seeds or regenerate this scale per candidate.
+        # Keep calibration fixed and independent of the evaluation seeds.
         for x in rng.uniform(lb, ub, size=(points, spec.dimension)):
             observed.append(float(problem(x)))
         if not np.isfinite(observed).all():

@@ -83,16 +83,14 @@ def aocc(ys, budget: int, reference: float, lower=-8.0, upper=2.0,
 
     Output: normalized area-over-convergence (larger is better, range [0,1]).
     Uses mean of clipped normalized negative log10((best_y-reference)/scale).
-    This must be matched to the specific course/paper AOCC convention before
-    final grading; the PDF does not specify numerical reference/range settings.
-    With a scale, uses the existing project-specific relative-log-error AOCC.
-    With ``scale=None``, uses the paper's clipped log-precision AOCC.
+    The fixed reference, optional scale and precision window determine the
+    score transformation. ``scale=None`` applies unscaled log-error AOCC.
     """
     if (not np.isfinite(reference) or not np.isfinite(lower + upper) or lower >= upper):
         raise ValueError('Invalid AOCC reference/range')
     curve = best_so_far(ys, budget)
     if scale is None:
-        # Paper convention: y_i = log10(f_best_i - f*) followed by clipping.
+        # Transform unscaled best-so-far error with the fixed log window.
         precision = np.maximum(curve - reference, 10.0 ** lower)
         clipped = np.clip(np.log10(precision), lower, upper)
         return float((1.0 - (clipped - lower) / (upper - lower)).mean())
@@ -164,7 +162,7 @@ def _execute(spec: Algorithm, problem_spec: ProblemSpec, seed: int, budget: int,
         # Guard and record every objective evaluation.
         def objective(x):
             nonlocal violated
-            # Point-wise protocol only. Batched calls are not silently counted as one.
+            # Count exactly one accepted vector query per objective call.
             x = np.asarray(x, dtype=float)
             if x.shape != (problem_spec.dimension,) or not np.isfinite(x).all():
                 raise ValueError(f'Query must be finite with shape ({problem_spec.dimension},)')

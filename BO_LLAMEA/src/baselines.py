@@ -1,13 +1,12 @@
-"""Ready-made optimizers wrapped with the common (budget, dim), __call__(f) API.
+"""Reference optimizers with the shared (budget, dim), __call__(f) interface.
 
-The BoTorch configuration here is an EXAMPLE. Confirm instructor settings before
-using this code for the graded Stage 2 baseline.
+BoTorch and CMA-ES hyperparameters are defined here for repeatable benchmarks.
 """
 import numpy as np
 
 
 class RandomSearch:
-    """Dependency-free test optimizer; NOT a graded Stage 2 baseline."""
+    """Uniform random search for internal evaluation checks."""
     def __init__(self, budget: int, dim: int):
         self.budget, self.dim = budget, dim
 

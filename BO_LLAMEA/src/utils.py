@@ -49,7 +49,7 @@ def dump_json(path, obj):
     """Input: path and JSON-serializable data. Writes formatted JSON."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Replace atomically so power loss/interruption cannot leave half a JSON file.
+    # Write JSON atomically to avoid partial files.
     temp = path.with_name(path.name + '.tmp')
     with temp.open('w', encoding='utf-8') as f:
         json.dump(obj, f, indent=2, allow_nan=False)

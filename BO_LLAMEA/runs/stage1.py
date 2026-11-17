@@ -1,7 +1,7 @@
 """Generate BO algorithms with installed LLaMEA and resumable small (mu+lambda) search.
 
 CLI:
-  python -m runs.stage1 --target bbob --limit 3
+  python -m runs.stage1 --target bbob --limit 20
   python -m runs.stage1 --target bbob --resume --limit 100
 
 `--limit` is the TOTAL candidate count, not additional candidates.
@@ -29,15 +29,15 @@ from src.performance import Algorithm, evaluate_many
 from src.utils import (DEFAULT_CONFIG, RESULTS, dump_json, group_seeds,
                        load_config, metadata, plot_fitness, seed_search)
 
-# Installed library: it handles prompts, LLM calls, ES selection and lineage.
-# Only the checkpoint writer is overridden below (atomic file replacement).
+# LLaMEA manages generation, operators and selection.
+# The subclass bounds offspring batches and checkpoints ES state.
 try:
     from llamea import LLaMEA, Operator
 except ImportError:
     LLaMEA = Operator = None
 
 
-# ---- Operator prompts (LLaMEA `operators=`) ----
+# LLaMEA operator definitions
 # Prompt content and selection weights live outside the execution script.
 # Crossover requires two parents; all other operators mutate one parent.
 OPERATOR_PARENTS = {
@@ -56,7 +56,7 @@ def build_operators(cfg):
     es = cfg['llamea']
     variant = es.get('operators', 'baseline')
     if variant == 'baseline':
-        return []  # Keep LLaMEA's own default mutation operator unchanged.
+        return []  # Use the library default mutation operator.
     if variant != 'novelty':
         raise ValueError('llamea.operators must be baseline or novelty')
 
@@ -87,7 +87,7 @@ def build_operators(cfg):
 
 
 def stage1_output_folder(target, tag=None, rep=0):
-    """Default runs stay under stage1; ONLY explicit tags use stage1_runs."""
+    """Route untagged runs to stage1 and tagged repetitions to stage1_runs."""
     if rep < 0:
         raise ValueError('--rep must be nonnegative')
     if tag is None:
@@ -131,7 +131,7 @@ class AtomicLLaMEA(LLaMEA if LLaMEA is not None else object):
         folder.mkdir(parents=True, exist_ok=True)
         target = folder / 'llamea_config.pkl'
         temporary = folder / 'llamea_config.pkl.tmp'
-        # Restore these states on warm start for reproducible ES-side choices.
+        # Persist the evolutionary RNG states for resume.
         self._checkpoint_random_state = random.getstate()
         self._checkpoint_numpy_state = np.random.get_state()
         try:
@@ -311,11 +311,10 @@ def run_target(cfg, target, resume, limit, tag=None, rep=0):
         raise ValueError(f'Cumulative limit must be {parents}..100 (at least n_parents)')
     # Validate output routing before calibration or any file writes.
     target_folder = stage1_output_folder(target, tag, rep)
-    # This calibration is independent of any generated code or evaluation seed.
-    # An objective's raw scale is not supplied by the problem wrappers.
+    # Calibrate the objective scale separately from seeded optimizer runs.
     metric = metric_for_target(cfg, target, RESULTS / 'calibration')
-    # A fingerprint prevents accidentally resuming with changed problems,
-    # prompts, AOCC or model configuration. The limit may INCREASE separately.
+    # Bind checkpoints to the effective configuration, prompts and metric.
+    # The cumulative candidate limit may increase on resume.
     prompt = (Path(__file__).resolve().parents[1] / cfg['prompts'][target]).read_text(encoding='utf-8')
     prompt += ("\nMandatory interface: one class with __init__(self, budget, dim) and "
         "__call__(self, func), returning (best_y, best_x). The six-dimensional "
@@ -327,7 +326,7 @@ def run_target(cfg, target, resume, limit, tag=None, rep=0):
     signature = hashlib.sha256(json.dumps(dict(config=cfg, metric=metric, prompt=prompt,
         operators=[o.prompt for o in operators], rep=rep),
         sort_keys=True).encode()).hexdigest()
-    # Experiments go to stage1_runs/<tag>_r<rep>/; the default path stays what Stage 2 reads.
+    # Tagged search outputs are isolated from the default Stage 2 winners.
     if target_folder.is_symlink():
         raise RuntimeError(f'Refusing to overwrite a symlinked results folder: {target_folder}')
     folder = target_folder.resolve()
@@ -371,8 +370,7 @@ def run_target(cfg, target, resume, limit, tag=None, rep=0):
         search.budget = limit
         print(f'Resuming {target}: {committed}/{limit} candidates committed')
     else:
-        # Without --resume, start a fresh search and replace ONLY this target's
-        # Stage 1 results. Check the LLM configuration before deleting files.
+        # A fresh search replaces only its target directory after LLM setup.
         llm = make_llm(cfg)
         if folder.exists():
             shutil.rmtree(folder)
@@ -402,8 +400,7 @@ def run_target(cfg, target, resume, limit, tag=None, rep=0):
     try:
         os.chdir(folder)
         with warnings.catch_warnings():
-            # LLaMEA runs joblib sequentially; its timeout warning is not a
-            # warning about our own hard subprocess timeouts.
+            # Ignore joblib's sequential-backend notice; worker timeouts remain enforced.
             warnings.filterwarnings('ignore', message='The backend class .* does not support timeout',
                                      category=UserWarning)
             search.run()
@@ -439,7 +436,7 @@ def main():
     parser.add_argument('--operators', choices=('baseline', 'novelty'), default=None)
     parser.add_argument('--feedback', choices=('basic', 'rich'), default=None)
     args = parser.parse_args()
-    # --rep alone must not silently change an ordinary Stage 1 run.
+    # Repetition indices are only meaningful for tagged searches.
     if args.tag is None and args.rep is not None:
         parser.error('--rep requires --tag')
     cfg = load_config(args.config)
