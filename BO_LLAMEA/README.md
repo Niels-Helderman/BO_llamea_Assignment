@@ -197,19 +197,13 @@ For a seed, let:
 
 The current scaled AOCC calculation is:
 
-\[
-\operatorname{AOCC}
-=
+$$
+\operatorname{AOCC} =
 \frac{1}{B}
 \sum_{t=1}^{B}
 \operatorname{clip}
-\left(
-\frac{U-\log_{10}(\max((b_t-r)/S,10^L))}
-{U-L},
-0,
-1
-\right)
-\]
+\left(\frac{U-\log_{10}\left(\max\left((b_t-r)/S,10^L\right)\right)}{U-L}, 0, 1 \right)
+$$
 
 For BBOB, `r` comes from the instance-specific IOH optimum. For real-world problem 1124, `r = 0` is a lower bound because the objective is based on squared residuals.
 
