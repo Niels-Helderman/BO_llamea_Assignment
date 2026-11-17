@@ -1,0 +1,1 @@
+Refine the selected algorithm to converge faster in the first 20-30 evaluations. Keep its design, but fix weaknesses in initialization size, acquisition or fallback logic.

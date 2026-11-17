@@ -1,0 +1,1 @@
+Add a trust region around the incumbent that shrinks after failures and expands after successes, with a restart when it collapses.

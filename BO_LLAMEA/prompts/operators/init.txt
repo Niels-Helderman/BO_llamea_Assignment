@@ -1,0 +1,1 @@
+Change the initial design and early phase, for example Sobol or Latin hypercube with a different size, or stop initial sampling once the surrogate is informative.

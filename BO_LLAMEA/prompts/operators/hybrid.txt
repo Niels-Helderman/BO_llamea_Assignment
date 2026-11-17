@@ -1,0 +1,1 @@
+Combine BO with another optimizer, for example a CMA-ES or differential-evolution step to maximize the acquisition, or alternate GP-guided and local-search queries.

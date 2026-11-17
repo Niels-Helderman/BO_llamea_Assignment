@@ -1,0 +1,1 @@
+Keep the required interface and use at most `budget` objective calls, including initialization. Keep the numerical safeguards (jitter, try/except with a bounded fallback query). Start the one-line description with '<surrogate> + <acquisition> + <initialization>' so the design is visible in the population summary.

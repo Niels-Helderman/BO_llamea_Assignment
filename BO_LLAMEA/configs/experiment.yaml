@@ -1,0 +1,60 @@
+# Set your assigned group ID and the two fixed target IDs before searching.
+group_id: 9
+dimension: 6
+problems:
+  bbob: {fid: 1, instance: 1}
+  realworld: {problem_id: 1124}
+
+# Use a model permitted by the course guidelines.
+llm:
+  provider: gemini              # gemini | ollama
+  model: gemini-3.1-flash-lite  # Availability can change
+
+# Elitist evolutionary search settings.
+llamea:
+  n_parents: 2                  # 1..4; initial population size
+  n_offspring: 1                # 1..4; number generated per generation
+  elitism: true                # Keep best parents
+  parent_selection: roulette   # random | roulette | tournament
+  tournament_size: 3           # Used only for tournament selection
+  operators: novelty           # baseline | novelty
+  feedback: rich               # basic | rich
+  operator_weights:            # Only used in novelty mode; 0 disables an operator
+    refine: 1.0
+    surrogate: 1.5
+    acquisition: 1.5
+    trust_region: 1.0
+    hybrid: 1.0
+    init: 0.5
+    crossover: 1.0             # Requires n_parents >= 2
+
+stage1:
+  max_candidates: 100          # Across initial population and all offspring
+  budget: 60                   # Actual objective calls per seed, including initialization
+  seed_workers: 4              # Independent seed processes, not LLM requests
+  timeout_seconds: 240         # Hard wall time per seed, in seconds
+  progress_every: 2
+  aocc:
+    # Normalized log-regret AOCC: log10((best - reference) / scale).
+    # This is a documented project metric; confirm course-specific requirements.
+    # Set scale to null for the paper's unscaled log-precision AOCC.
+    # Keep auto (or a positive number) for the existing scaled metric.
+    lower_log10_error: -8
+    upper_log10_error: 2
+    bbob_reference: auto       # IOH provides instance-specific optimum
+    realworld_reference: auto  # Auto justified ONLY for real-world ID 1124
+    scale: auto                # auto/number = scaled metric; null = paper metric
+    calibration_points: 32     # Extra setup-only objective calls, logged separately
+    calibration_seed: 2026
+
+stage2:
+  budget: 600                  # CLI --budget overrides the per-run budget
+  seed_workers: 4
+  timeout_seconds: 1800        # Per run; adjust if valid optimizers time out
+  botorch_initial_points: 12  # Example baseline; verify instructor's settings
+  ioh_logging: false
+
+prompts:
+  bbob: prompts/bbob.txt
+  realworld: prompts/realworld.txt
+  operator_dir: prompts/operators

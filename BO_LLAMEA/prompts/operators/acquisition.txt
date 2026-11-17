@@ -1,0 +1,1 @@
+Replace the acquisition principle, for example Thompson sampling, UCB with an adaptive beta schedule, a portfolio switching between EI and exploitation, or a knowledge-gradient-like rule.

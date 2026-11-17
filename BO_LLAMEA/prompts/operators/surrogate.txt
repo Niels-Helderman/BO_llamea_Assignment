@@ -1,0 +1,1 @@
+Replace the surrogate with a structurally different one, for example an ARD Matern GP, a GP on a log/rank-transformed output, a local GP around the incumbent, or a random-forest / ensemble surrogate. Do not just tune parameters.

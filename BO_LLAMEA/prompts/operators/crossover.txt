@@ -1,0 +1,1 @@
+Combine the surrogate of one selected algorithm with the acquisition/search strategy of the other. The result must be ONE coherent class, not two algorithms glued together.

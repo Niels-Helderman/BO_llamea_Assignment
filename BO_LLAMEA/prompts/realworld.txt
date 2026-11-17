@@ -1,0 +1,12 @@
+Design a robust Bayesian optimization algorithm for MINIMIZING a six-dimensional real-world numerical black-box objective from Practical_Problems. The task may have a very different objective scale from BBOB; make no assumptions that its objective optimum is zero, or that observed objective magnitudes are near 1. Selection rewards mean early convergence across ten seeds.
+
+Required interface: exactly one complete Python class with __init__(self, budget, dim) and __call__(self, func) returning (best_y, best_x). Only query the objective as func(x), with one finite NumPy vector of shape (dim,) within func.bounds.lb / func.bounds.ub. Every call, including initialization, counts toward the EXACT budget. Return best_y as a Python float and best_x as a finite (dim,) vector. No filesystem, network, subprocess or GPU dependency. Respect externally seeded randomness; do not call np.random.seed with a constant.
+
+Numerical reliability and quality:
+- Scale domain inputs to [0,1]^dim; center/standardize y based on observed values so GP fitting and acquisition optimization work across objective magnitudes. Maintain X shape (n,dim), y shape (n,), and finite scalar acquisition outputs.
+- Prefer tested probabilistic surrogate implementations (scikit-learn or BoTorch where appropriate); avoid unnecessary handmade GP matrix algebra. Use reasonable noise/jitter to prevent singular fits; handle genuine noise if present.
+- Select candidate points with an exploration/exploitation strategy appropriate to the observations; avoid duplicate points, unproductive boundary-only selection, and unnecessarily expensive acquisition searches.
+- When surrogate fitting or acquisition optimization fails, use a valid bounded fallback query instead of raising an exception or exceeding budget.
+- The SAME generated class must remain computationally practical at 600 calls in Stage 2: limit expensive GP hyperparameter fitting, reuse fitted model quantities, and use a practical fitting schedule as data grows. Do not terminate merely after a long interval without improvement.
+
+Check array broadcasting, return scalars, the first acquisition calculation, numerical fallbacks, and the objective-call budget. Provide executable Python code, not pseudocode. Use LLaMEA's previous code and evaluation feedback to repair exact failures and improve convergence.
