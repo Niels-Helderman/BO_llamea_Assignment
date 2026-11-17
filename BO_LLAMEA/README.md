@@ -1,202 +1,434 @@
 # LLaMEA-Generated Bayesian Optimization
 
-This repository implements a two-stage search and evaluation framework for automatically designed Bayesian optimization (BO) algorithms. [LLaMEA](https://github.com/XAI-liacs/LLaMEA) generates Python optimizer classes for two six-dimensional minimization problems: a [COCO-BBOB](https://numbbo.github.io/coco/) function via IOH and a problem from [Practical_Problems](https://github.com/BayesOptApp/Practical_Problems). The selected algorithms are benchmarked on **both** problems against CMA-ES and BoTorch.
+This project uses [LLaMEA](https://github.com/XAI-liacs/LLaMEA) to generate six-dimensional Bayesian optimization (BO) algorithms. It first searches on a COCO-BBOB problem and a real-world problem from [Practical_Problems](https://github.com/BayesOptApp/Practical_Problems). The two generated algorithms are then tested on both problems and compared with CMA-ES and BoTorch.
 
-The outer evolutionary search **maximizes mean AOCC**; each generated BO algorithm **minimizes the black-box objective**. The code targets LLaMEA **1.4.2**.
+The generated algorithms minimize the black-box objective. LLaMEA maximizes their mean AOCC score when choosing which candidate to keep. The implementation uses LLaMEA 1.4.2 and does not copy or reimplement the LLaMEA package.
 
-## 1. Project structure
+## Project structure
 
 ```text
 BO_LLAMEA/
 ├── configs/
-│   └── experiment.yaml       # Problem, LLM, ES and evaluation settings
+│   └── experiment.yaml       # Problems, LLM, search and evaluation settings
 ├── prompts/
-│   ├── bbob.txt              # BBOB task prompt
-│   ├── realworld.txt         # Real-world task prompt
-│   └── operators/            # Seven mutation/crossover prompts + common rules
+│   ├── bbob.txt
+│   ├── realworld.txt
+│   └── operators/            # Novelty operator prompts
 ├── runs/
-│   ├── stage1.py             # Generate, evaluate, select, checkpoint and resume
-│   └── stage2.py             # Cross-problem benchmark and figures
+│   ├── stage1.py             # Generate and select algorithms
+│   └── stage2.py             # Benchmark both problems
 ├── src/
-│   ├── problems.py           # Problem factories, bounds, references, calibration
-│   ├── performance.py        # Objective guard, AOCC, traces, parallel seed runs
-│   ├── baselines.py          # CMA-ES, BoTorch, random-search utility
-│   └── utils.py              # Configuration, seeds, saving and plotting
-├── results/                  # Created during execution
+│   ├── problems.py           # Problem setup and AOCC references
+│   ├── performance.py        # Evaluation guard, AOCC and parallel runs
+│   ├── baselines.py          # CMA-ES and BoTorch implementations
+│   └── utils.py              # Saving, seeds and plots
+├── results/                  # Created when experiments are run
 ├── requirements.txt
 └── README.md
 ```
 
-`runs/` controls the experiments. `src/` provides the shared evaluation infrastructure. `prompts/` contains the text supplied to the LLM. `configs/experiment.yaml` selects the experimental conditions. The LLaMEA library itself is an installed dependency.
+`runs/` contains the two experiment entry points. `src/` contains code shared by the stages. `prompts/` contains the text sent to the LLM. `configs/experiment.yaml` contains the experiment settings.
 
-## 2. Installation
+## Installation
 
-**Requirements:** Python 3.11–3.12, Git, SWIG, and access to Gemini or a local Ollama model. Run commands from the repository root.
+Use Python 3.11 or 3.12. Git and SWIG must also be installed.
 
-Create and activate a virtual environment:
+Create a virtual environment:
 
 ```bash
 python -m venv .venv
 ```
 
-- **Windows PowerShell:** `.\.venv\Scripts\Activate.ps1`
-- **Linux/macOS:** `source .venv/bin/activate`
+Activate it:
 
-Install SWIG using the operating system's package manager, or use Conda with `conda install -c conda-forge swig`. Install the Python dependencies:
+- Windows PowerShell: `.\.venv\Scripts\Activate.ps1`
+- Linux/macOS: `source .venv/bin/activate`
+
+Install SWIG with the operating system package manager, or with Conda:
+
+```bash
+conda install -c conda-forge swig
+```
+
+Install the packages:
 
 ```bash
 python -m pip install -r requirements.txt
 python -m pip install "git+https://github.com/BayesOptApp/Practical_Problems.git"
 ```
 
-### Gemini API access
+Run all commands from the folder that contains `requirements.txt`.
 
-The default `llm.provider` is `gemini`. Obtain an API key from [Google AI Studio](https://aistudio.google.com/apikey) and set `GEMINI_API_KEY` in the environment **without saving it in the repository**.
+### Setting up the LLM
 
-- **Windows PowerShell:** copy the API key, then run `$env:GEMINI_API_KEY = (Get-Clipboard -Raw).Trim()` in the same terminal as the experiment. Avoid copying another command between copying the key and executing the clipboard command.
-- **Linux/macOS (Bash):** run `read -rs GEMINI_API_KEY; export GEMINI_API_KEY` and paste the key at the prompt.
+The default provider is Gemini:
 
-For a local model, run Ollama, pull the desired model, and set `llm.provider: ollama` and `llm.model` in YAML. LLaMEA uses the configured provider to generate initial algorithms and offspring.
+```yaml
+llm:
+  provider: gemini
+  model: gemini-3.1-flash-lite
+```
 
-## 3. Reproduce the main experiment
+Create a Gemini API key and set it as `GEMINI_API_KEY`. Do not add the key to YAML or commit it to Git.
 
-The uploaded configuration defines **group 9**, **BBOB function 1 / instance 1**, **real-world problem 1124**, and **dimension 6**. The evaluation seeds are therefore **90–99** for every method and target. Stage 1 is configured for `(2+2)` elitist LLaMEA with roulette parent selection, novelty operators, rich feedback, and a 60-call budget per seeded run.
+For PowerShell:
 
-After installation and provider setup, run these commands **in order**:
+```powershell
+$env:GEMINI_API_KEY = (Get-Clipboard -Raw).Trim()
+```
+
+For Bash:
 
 ```bash
-# Stage 1: independent 20-candidate searches on both targets
+read -rs GEMINI_API_KEY
+export GEMINI_API_KEY
+```
+
+It is also possible to use Ollama by setting `provider: ollama` and entering the name of an installed Ollama model.
+
+### Prompt and hyperparameter guidance
+
+- The base prompts are `prompts/bbob.txt` and `prompts/realworld.txt`. Edit these files to change the task instructions used for initial algorithms and later offspring.
+- The files in `prompts/operators/` describe individual novelty mutations, such as surrogate, acquisition, trust-region and crossover changes. `common.txt` contains constraints shared by those mutations.
+- Operator use and probabilities are set with `llamea.operators` and `llamea.operator_weights` in `configs/experiment.yaml`. Set an operator's weight to zero to disable it.
+- Search sizes and selection are controlled by `n_parents`, `n_offspring`, `elitism`, `parent_selection` and `tournament_size`. `feedback` can be `basic` or `rich`; rich feedback includes more convergence and seed-variation information.
+
+Changing prompts or these search settings changes the Stage 1 experiment. A changed run should be started as a new or tagged search. Resume should only be used when the prompt, configuration and AOCC metric are unchanged.
+
+## Experiment settings
+
+The example configuration currently contains:
+
+- Group 9, so seeds 90–99
+- BBOB function 1, instance 1
+- Real-world problem 1124
+- Dimension 6
+- 60 objective calls per Stage 1 candidate run
+- 600 objective calls per Stage 2 run
+- `(2+2)` elitist LLaMEA search
+- Roulette parent selection
+- Rich feedback
+- Novelty operators
+
+The same ten seeds are used for every algorithm and both problems. Stage 1 evaluates each candidate on the ten seeds. Stage 2 evaluates each method on the ten seeds for each target.
+
+### The main run
+
+A short development run can use 20 candidates:
+
+```bash
 python -m runs.stage1 --target bbob --limit 20
 python -m runs.stage1 --target realworld --limit 20
+```
 
-# Stage 2: both winners and both baselines, on both targets
+The final Stage 1 searches should use at most 100 candidates:
+
+```bash
+python -m runs.stage1 --target bbob --limit 100
+python -m runs.stage1 --target realworld --limit 100
+```
+
+Then run Stage 2:
+
+```bash
 python -m runs.stage2 --budget 600 --workers 8
 ```
 
-This is the recorded command configuration for the 20-candidate searches and the 600-call Stage 2 benchmark. Stage 1 uses **10 seeds × at most 60 objective calls** per candidate; Stage 2 evaluates **4 methods × 2 targets × 10 seeds**, each with **up to 600 calls**. `--workers 8` changes seed-level parallelism, not the seed assignments. LLM sampling and some numerical routines may still vary across environments.
+`--limit` is the total number of candidates, not the number of extra generations. `--workers` only changes process parallelism; it does not change the ten seeds.
 
-**Output behavior:** An untagged Stage 1 command starts a fresh search and replaces only `results/stage1/<target>/`. Stage 2 reads the winners from those two default directories. Running Stage 2 again with the same budget replaces `results/stage2/budget_0600/`. Archive any result directories that must be retained before repeating those commands.
+Stage 1 and Stage 2 can be run on CPU. BoTorch and GP fitting may take longer at 600 evaluations.
 
-### Optional run controls
+### Other useful commands
 
-| Purpose | Command or setting | Behavior |
-|---|---|---|
-| Continue Stage 1 | `python -m runs.stage1 --target bbob --resume --limit 100` | The limit is **cumulative candidates**, not extra generations |
-| Short Stage 2 run | `python -m runs.stage2 --budget 50 --workers 4` | Separate `results/stage2/budget_0050/` output |
-| Tagged Stage 1 repetition | `python -m runs.stage1 --target bbob --limit 20 --tag P1 --rep 1` | Writes `results/stage1_runs/P1_r1/bbob/` |
-| ES / prompting variants | Stage 1: `--parents`, `--offspring`, `--selection`, `--operators`, `--feedback` | Overrides matching YAML settings for that run |
-| Change LLM or AOCC | `configs/experiment.yaml` | Requires a **new** search if the saved resume signature changes |
+```bash
+# Continue an existing Stage 1 search
+python -m runs.stage1 --target bbob --resume --limit 100
 
-`--rep` requires `--tag`. Tagged searches are independent experiments; Stage 2 does **not** automatically load their winners. Without a tag, the `stage1_runs/` directory is not created by Stage 1.
+# Short Stage 2 development run
+python -m runs.stage2 --budget 50 --workers 4
 
-## 4. End-to-end workflow (pseudocode)
-
-The search budget counts **individual generated candidates**, including the initial parent population. It does not count generations. Each candidate is scored from the same ten problem seeds. Tagged repetitions and shortened benchmarking budgets are optional run parameters, not changes to the optimization objective.
-
-```text
-read experiment.yaml
-seeds = [10*group_id, ..., 10*group_id + 9]
-
-FOR target IN {bbob, realworld}:
-    load problem, target-specific task prompt and eligible operator prompts
-    metric = fixed AOCC reference + optional cached calibration scale
-
-    FOR each requested independent search repetition rep:
-        output = stage1/<target>                       if untagged
-                 stage1_runs/<tag>_r<rep>/<target>     if tagged
-        initialize n_parents LLaMEA individuals
-
-        WHILE evaluated_candidate_count < candidate_limit:
-            generate initial individuals or up to n_offspring new candidates
-            (shorten final batch to respect candidate_limit)
-
-            FOR each generated Python optimizer:
-                FOR seed IN seeds, in parallel (up to stage1.seed_workers):
-                    create fresh black-box instance and seed the RNGs
-                    run optimizer with guarded objective(x)
-                    record each accepted x and f(x), up to 60 calls
-                    calculate best-so-far curve and AOCC for that seed
-                fitness = mean(seed AOCC) if all ten runs succeed, else 0
-                save code, per-seed traces, fitness and evaluation feedback
-
-            update elitist ES population using configured parent selection
-            save an atomic population checkpoint and fitness history
-        export the best valid generated algorithm as best.py / best.json
-
-methods = {LLaMEA_bbob, LLaMEA_realworld, CMA-ES, BoTorch}
-budget = Stage 2 --budget override, otherwise stage2.budget
-workers = Stage 2 --workers override, otherwise stage2.seed_workers
-
-FOR target IN {bbob, realworld}:
-    FOR method IN methods:
-        FOR seed IN seeds, in parallel (up to workers):
-            run a fresh optimizer with a guarded budget of budget calls
-            save accepted objective observations and per-run status
-        save per-evaluation and per-seed data; update summary statistics
-    plot mean best-so-far convergence +/- standard error
-    save raw and reference-relative convergence figures under
-        results/stage2/budget_<budget>/
+# Repeat a tagged Stage 1 search
+python -m runs.stage1 --target bbob --limit 20 --tag P1 --rep 1
 ```
 
-Stage 1 population checkpoints support `--resume` after committed generations. Stage 2 writes results as method/target combinations finish but has no independent resume command.
+An untagged Stage 1 run replaces `results/stage1/<target>/`. Tagged runs are written below `results/stage1_runs/<tag>_r<rep>/` and are not loaded automatically by Stage 2.
 
-## 5. Configuration and experimental choices
+Running Stage 2 again with the same budget replaces `results/stage2/budget_0600/`. Any results that need to be kept should be copied or tagged before repeating the command.
 
-The central settings are in `configs/experiment.yaml`. CLI options override only the corresponding parameters for the current invocation.
+Stage 1 has a resume option. Stage 2 has no separate resume mode.
 
-| Section | Key settings | Effect |
-|---|---|---|
-| `problems` | BBOB `fid`, `instance`; real-world `problem_id`; `dimension` | Selects the two fixed minimization tasks |
-| `llm` | `provider`, `model` | Selects the code-generation backend |
-| `llamea` | `n_parents`, `n_offspring`, `elitism`, `parent_selection` | Controls the evolutionary strategy |
-| `llamea` | `operators`, `operator_weights`, `feedback` | Controls offspring prompts and feedback detail |
-| `stage1` | `max_candidates`, `budget`, `seed_workers`, `timeout_seconds` | Candidate count and seeded evaluation limits |
-| `stage1.aocc` | `lower_log10_error`, `upper_log10_error`, references, scale | Defines the fitness transformation |
-| `stage2` | `budget`, `seed_workers`, `timeout_seconds`, `botorch_initial_points`, `ioh_logging` | Controls benchmarking and optional native logging |
+## How the program works
 
-**Prompts.** `prompts/bbob.txt` and `prompts/realworld.txt` are task instructions used during initialization and offspring generation. In `novelty` mode, seven operator files specify refinement, surrogate, acquisition, trust-region, hybrid, initialization and crossover mutations; `common.txt` supplies shared constraints. The YAML operator weights determine sampling probabilities. Crossover is eligible only when at least two parents exist. In `baseline` mode, LLaMEA uses its default mutation prompt. `basic` and `rich` feedback are both computed from actual run statistics; `rich` adds convergence checkpoints, seed variability and stagnation summaries without changing fitness.
+### Stage 1
 
-**AOCC.** For budget \(B\), let \(b_t\) be the best-so-far objective, \(r\) the fixed problem reference, and \(S\) the optional problem scale. With lower/upper logarithmic clipping bounds \(L,U\), the implemented fitness for each seed is:
+For each target:
+
+1. LLaMEA creates Python BO algorithm classes.
+2. Every candidate is stored as source code.
+3. The candidate is run with a fresh black-box problem on each of the ten seeds.
+4. The program records every accepted objective call.
+5. The candidate receives the mean AOCC of the ten successful runs.
+6. Invalid or timed-out candidates receive fitness zero.
+7. LLaMEA uses the feedback to select and mutate the next candidates.
+8. The best valid candidate is saved as `best.py`.
+
+The objective callback checks the input shape, bounds and budget. It allows at most 60 calls per candidate seed. Generated code is run in separate processes with a hard time limit, but this is not a security boundary. Untrusted code should be run in an isolated environment.
+
+### Stage 2
+
+Stage 2 loads the winners selected in Stage 1 and evaluates:
+
+- the BBOB-generated algorithm,
+- the real-world-generated algorithm,
+- CMA-ES,
+- BoTorch.
+
+Both targets are used, for example, the BBOB winner is also tested on the real-world problem. Seed runs are executed in parallel. Each run can use at most 600 objective calls.
+
+After each method/target combination, the program saves the per-run status and objective histories. It then calculates best-so-far trajectories and plots them with ± one standard error.
+
+## AOCC
+
+For a seed, let:
+
+- \(b_t\) be the best objective found by evaluation \(t\),
+- \(r\) be the problem reference,
+- \(L\) and \(U\) be the lower and upper logarithmic bounds.
+
+The current scaled AOCC calculation is:
 
 \[
-\operatorname{AOCC}=\frac{1}{B}\sum_{t=1}^{B}\operatorname{clip}\!\left(\frac{U-\log_{10}(\max((b_t-r)/S,10^L))}{U-L},0,1\right).
+\operatorname{AOCC}
+=
+\frac{1}{B}
+\sum_{t=1}^{B}
+\operatorname{clip}
+\left(
+\frac{U-\log_{10}(\max((b_t-r)/S,10^L))}
+{U-L},
+0,
+1
+\right)
 \]
 
-With `scale: null`, the implementation uses the unscaled error \(b_t-r\) instead of dividing by \(S\). The current window is \(L=-8,\ U=2\). For BBOB, the reference comes from the instance-specific IOH optimum. For real-world problem 1124, zero is a lower bound of its squared-error objective. With `scale: auto`, a fixed scale is computed from **32 separately logged calibration points per target**, cached in `results/calibration/`, and reused across algorithms. Calibration calls are not part of any seeded BO run. The calibrated metric differs from the unscaled log-precision AOCC used in some LLaMEA studies, so the chosen mode must be reported alongside scores.
+For BBOB, `r` comes from the instance-specific IOH optimum. For real-world problem 1124, `r = 0` is a lower bound because the objective is based on squared residuals.
 
-**Baseline implementations.** CMA-ES uses `pycma` ask/tell, initialized at the search-space midpoint with initial sigma equal to 25% of the mean domain width. BoTorch uses a `SingleTaskGP`, standardized outcomes, 12 scrambled Sobol initialization points, `LogExpectedImprovement`, five acquisition restarts and 64 raw samples. BoTorch models the negative objective so its internal maximization implements minimization. All initialization calls count toward the stated budget.
+The implementation also has an unscaled option:
 
-## 6. Results and analysis
-
-```text
-results/
-├── calibration/
-│   ├── bbob.json, realworld.json
-├── stage1/
-│   ├── bbob/
-│   │   ├── best.py, best.json, fitness.png, experiment.json
-│   │   ├── code/candidate_NNN.{py,json}
-│   │   ├── traces/candidate_NNN.json
-│   │   └── state.json, checkpoint.json, exp-*/   (LLaMEA history)
-│   └── realworld/                              (same format)
-├── stage1_runs/                                 (only for tagged searches)
-│   └── <tag>_r<rep>/<target>/
-└── stage2/
-    └── budget_0600/
-        ├── experiment.json, summary.csv
-        ├── bbob_runs.csv, bbob_statuses.csv, bbob_results.json
-        ├── realworld_runs.csv, realworld_statuses.csv, realworld_results.json
-        └── figures/                            (raw and normalized convergence)
+```yaml
+scale: null
 ```
 
-**Stage 1 analysis:** `fitness.png` shows each candidate's mean AOCC and the nondecreasing best-so-far fitness. `code/` contains every generated algorithm and its fitness/feedback record; `traces/` contains the ten seeded objective histories for each candidate. The native LLaMEA logs retain prompts, responses and evolutionary lineage. `best.py` is the chosen algorithm; `best.json` records its source candidate and fitness. Invalid candidate records are retained separately from valid scores.
+This replaces `(b_t-r)/S` with `b_t-r` and should be used when the paper's unscaled log-precision formula is required.
 
-**Stage 2 analysis:** Each `*_runs.csv` row is one accepted objective evaluation (including input coordinates and best-so-far objective); `*_statuses.csv` has one row per seeded optimizer run; `*_results.json` contains full traces; and `summary.csv` aggregates final objectives, AOCC, successful-run counts, warnings and standard errors. The figures show mean best-so-far trajectories with **± one standard error**, using raw and normalized/reference-relative views. Raw BBOB plots display best objective minus known optimum; raw real-world plots display the objective. The plot labels do not change the underlying data transformation. If enabled, native IOH logs supplement the custom traces and use configured event triggers rather than recording all observations by default.
+With `scale: auto`, 32 fixed-seed points are used to estimate a target-specific scale. The points are setup calls and are not included in the 60 or 600-call optimizer budget. The calibration scale is cached in `results/calibration/`. It is not the same as the unscaled AOCC formula and should not be presented as that formula.
 
-**Describing the selected algorithms:** Since LLaMEA generates code stochastically, describe each final `best.py` from its actual implementation. Record its initialization, surrogate, acquisition/next-point rule, exploration mechanism, model updates, termination conditions and computational cost. Include a short, code-specific pseudocode for each winner and relate its choices to the Stage 1 score and its native-versus-transfer performance in Stage 2. The generated code and seed-level traces form the evidence for these descriptions.
+The current lower bound is -8 and the upper bound is 2. These values should be checked against the exact dimension-6 setup before final results are produced.
 
-**Reproducibility record:** `experiment.json` saves target IDs, seeds, budgets, prompt and configuration information, selected method names and software/platform metadata. Retain the source code, task/operator prompts, the selected searches' LLaMEA histories, winner files, per-seed results and figures. Also record the CPU model, logical cores, RAM, operating system and accelerator (if used) for the machine running the benchmark. LLM output can vary even when evaluation seeds are fixed. Serialized LLaMEA checkpoints may contain provider credentials and must not be published or loaded from untrusted sources.
+## Baselines
 
-## 7. Dependencies and attribution
+### CMA-ES
 
-The framework integrates [LLaMEA](https://github.com/XAI-liacs/LLaMEA), [IOHexperimenter / IOH](https://github.com/IOHprofiler/IOHexperimenter), [Practical_Problems](https://github.com/BayesOptApp/Practical_Problems), [pycma](https://github.com/CMA-ES/pycma), [BoTorch](https://github.com/pytorch/botorch), [GPyTorch](https://github.com/cornellius-gp/gpytorch) and [scikit-learn](https://scikit-learn.org/). These libraries remain independently licensed. Generated optimizers execute dynamically in subprocesses: **the subprocess timeout is not a security sandbox**; run untrusted generated code in an appropriately isolated environment.
+The current CMA-ES baseline uses `pycma`. It starts at the midpoint of the search bounds with sigma equal to 25% of the mean domain width. The implementation uses `ask/tell` and clips all proposed points into the bounds.
+
+### BoTorch
+
+The current BoTorch baseline uses:
+
+- a `SingleTaskGP`,
+- standardized outcomes,
+- 12 scrambled Sobol initialization points,
+- `LogExpectedImprovement`,
+- five acquisition restarts,
+- 64 raw acquisition samples.
+
+It minimizes by giving the GP negative objective values. All initialization and acquisition evaluations count toward the configured budget.
+
+These baseline settings are implementation choices made while building this repository. No confirmed instructor configuration for CMA-ES or BoTorch was included in the course material available for this project.
+
+## Recorded selected algorithms
+
+The following two winners were found in 20-candidate searches. These descriptions and pseudocode explain the specific recorded classes in `stage1/stage1/bbob/best.py` and `stage1/stage1/realworld/best.py`; they are not generic BO templates. If a later search replaces either `best.py`, the description and pseudocode must be checked against the new source code.
+
+### BBOB winner
+
+Candidate 15 is the selected BBOB algorithm. Its Stage 1 fitness was `0.4730794961`.
+
+It uses:
+
+- 12 Latin Hypercube initialization points,
+- a scikit-learn Gaussian process,
+- a Matérn 5/2 kernel,
+- a small WhiteKernel for numerical stability,
+- expected improvement,
+- ten random acquisition starts plus the current incumbent,
+- bounded L-BFGS-B acquisition optimization,
+- GP hyperparameter optimization every fifth iteration.
+
+The inputs are scaled to `[0,1]^6`. For the remaining calls, the algorithm updates the GP, searches for the expected-improvement maximum, and evaluates the proposal. A proposal that is too close to an existing point is replaced with a random in-bounds point.
+
+Pseudocode:
+
+```text
+scale the bounds to [0,1]^6
+sample 12 Latin Hypercube points
+evaluate the initialization points
+
+while evaluations remain:
+    fit the GP
+    create acquisition starting points
+    optimize expected improvement
+    avoid a point that is nearly duplicate
+    evaluate and update the best result
+
+return the best objective and point
+```
+
+This algorithm keeps the initialization and GP structure simple. The more unusual part is that it updates the GP after every observation but only enables hyperparameter optimization every fifth iteration. It also starts acquisition searches from both random points and the incumbent.
+
+### Real-world winner
+
+Candidate 14 is the selected real-world algorithm. Its Stage 1 fitness was `0.4933049959`.
+
+It uses:
+
+- 16 scrambled Sobol initialization points,
+- a scikit-learn Gaussian process,
+- a Matérn 5/2 kernel,
+- objective standardization,
+- expected improvement,
+- ten acquisition starts,
+- a local trust region,
+- random fallback points.
+
+The algorithm standardizes observed objective values before fitting the GP. It converts the GP predictions back to the original scale before calculating expected improvement. Candidate searches take place in a box around the current best point instead of across the full domain.
+
+The trust region starts at 50% of each domain dimension. It grows after improvement and shrinks after no improvement, while staying between 5% and 50%.
+
+Pseudocode:
+
+```text
+create a scrambled 6-D Sobol initialization design
+evaluate 16 points
+
+while evaluations remain:
+    standardize the objective values
+    fit the GP
+    set a trust region around the incumbent
+    run ten bounded L-BFGS-B searches
+    evaluate the best proposed point
+    grow or shrink the trust region
+
+return the best objective and point
+```
+
+The trust region is the main feature that separates this algorithm from a standard global BO loop. Scaling the objective is also useful for this problem because its values are much larger than the BBOB values.
+
+### Comparison
+
+The BBOB winner uses wider exploration and periodic GP fitting. The real-world winner searches locally around the incumbent and changes its search area based on whether improvement is found.
+
+Both use standard GP and expected-improvement components, but LLaMEA combined these components with different control strategies. The final algorithms should still be inspected after any future search, since LLaMEA output can change.
+
+Both current winners contain broad exception fallbacks. These should be discussed as implementation risks:
+
+- the BBOB winner catches GP fitting exceptions and continues;
+- the real-world winner uses random fallback samples when an acquisition step fails.
+
+If these sections are changed, the Stage 1 search should be rerun and the result files and README updated together.
+
+## Results and files
+
+Stage 1 creates:
+
+```text
+results/stage1/
+├── bbob/
+│   ├── best.py
+│   ├── best.json
+│   ├── fitness.png
+│   ├── experiment.json
+│   ├── code/
+│   ├── traces/
+│   └── exp-*/
+└── realworld/
+    └── same structure
+```
+
+`fitness.png` shows candidate AOCC and best-so-far fitness. `code/` contains all generated candidates and feedback. `traces/` contains the ten objective histories for each candidate. The native LLaMEA logs contain prompts, responses and evolutionary history.
+
+Stage 2 creates:
+
+```text
+results/stage2/budget_0600/
+├── experiment.json
+├── summary.csv
+├── bbob_runs.csv
+├── bbob_statuses.csv
+├── bbob_results.json
+├── realworld_runs.csv
+├── realworld_statuses.csv
+├── realworld_results.json
+└── figures/
+```
+
+The run files contain accepted objective calls and best-so-far values. The status files contain one row per seed run and include success, timeout or error information. The JSON files contain the complete recorded trajectories.
+
+The plots show mean best-so-far performance with ± one standard error:
+
+- BBOB: objective minus the IOH optimum
+- Real-world: objective value
+- Additional normalized plots use the configured reference and scale
+
+Failed Stage 2 runs are excluded from mean convergence curves and uncertainty bands. Their failure counts remain available in the status and summary files.
+
+## Reproducibility and logging
+
+The experiment records the YAML configuration, prompts, seeds, budgets, metric settings, selected methods and package versions. It also saves candidate source code and per-seed traces.
+
+Before the final benchmark, also record:
+
+- the CPU model,
+- logical core count,
+- RAM,
+- operating system,
+- Python package versions,
+- GPU or accelerator, if used,
+- the actual LLM model and provider,
+- the selected BBOB and real-world problem,
+- the BoTorch settings used,
+- the exact AOCC mode and bounds.
+
+The 32 calibration points are separate setup evaluations and must not be added to the 60 or 600 objective budget.
+
+Native IOH logging is optional. The project JSON and CSV traces are the complete assignment logs. Native IOH logs can be enabled with `stage2.ioh_logging: true`, but they supplement rather than replace the custom traces.
+
+Generated Python is executed dynamically in subprocesses. The timeout prevents a run from continuing indefinitely, but it does not make generated code safe. Run the project in an isolated environment if the generated code is not trusted.
+
+## Limitations
+
+The exact baseline settings mentioned in the assignment could not be found in the course material available to us. In particular:
+
+- the required CMA-ES initialization and step-size settings,
+- the required BoTorch surrogate and acquisition settings,
+- the exact number of BoTorch initialization points,
+- and the exact acquisition optimization settings.
+
+The baseline implementations therefore use documented provisional choices:
+
+- CMA-ES starts at the search-space midpoint with initial sigma equal to 25% of the mean domain width;
+- BoTorch uses 12 scrambled Sobol initialization points, a `SingleTaskGP`, standardized outcomes, `LogExpectedImprovement`, five acquisition restarts and 64 raw samples.
+
+These values were not confirmed as instructor-specified settings. If the setting is changed, all methods must still be run with the same evaluation budget and the same seed set.
+
+The project is also limited by the following unresolved experiment choices:
+
+- the final AOCC mode and lower/upper bounds;
+- whether the AOCC bounds differ between BBOB and the real-world problem;
+- the exact machine and hardware where the final experiments are run;
+
+## Dependencies and attribution
+
+This project uses [LLaMEA](https://github.com/XAI-liacs/LLaMEA), [IOH](https://github.com/IOHprofiler/IOHexperimenter), [Practical_Problems](https://github.com/BayesOptApp/Practical_Problems), [pycma](https://github.com/CMA-ES/pycma), [BoTorch](https://github.com/pytorch/botorch), [GPyTorch](https://github.com/cornellius-gp/gpytorch) and [scikit-learn](https://scikit-learn.org/).
+
+When code is copied or adapted from another source, add a comment naming the author or repository and link to the original. Check the license of external code before including or publishing it.
