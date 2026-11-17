@@ -1,0 +1,9 @@
+{
+  "number": 1,
+  "class_name": "",
+  "fitness": -1.0,
+  "valid": false,
+  "generation": 0,
+  "code": "code\\candidate_001.py",
+  "feedback": "Fitness (mean AOCC across 10 runs): -1.000000; valid=False; error=ServerError: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}.\nOn line 186: .\n"
+}

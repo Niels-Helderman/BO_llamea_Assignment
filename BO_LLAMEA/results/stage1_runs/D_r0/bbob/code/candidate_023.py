@@ -1,78 +1,77 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc, norm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
+from scipy.optimize import minimize
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        # Use WhiteKernel for numerical stability on deterministic functions
-        self.kernel = ConstantKernel(1.0) * Matern(length_scale=np.ones(dim), nu=2.5) + WhiteKernel(noise_level=1e-10)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=0, normalize_y=True, n_restarts_optimizer=0)
+        self.tr_length = 0.5 
+        self.min_tr = 0.05
+        self.max_tr = 0.5
+        self.X_obs = []
+        self.y_obs = []
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        range_dim = ub - lb
         
-        n_init = max(2 * self.dim + 1, 10)
+        n_init = max(self.dim + 2, min(self.budget // 4, 15))
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = qmc.scale(sampler.random(n_init), lb, ub)
-        y_obs = np.array([func(x) for x in X_obs])
+        init_points = sampler.random(n_init)
         
-        best_idx = np.argmin(y_obs)
-        best_x = X_obs[best_idx].copy()
-        best_y = float(y_obs[best_idx])
-        
-        for i in range(n_init, self.budget):
-            # Fit GP (refit hyperparameters every few steps to save compute)
-            if i % 10 == 0 or i == n_init:
-                try:
-                    self.gp.fit(X_obs, y_obs)
-                except:
-                    pass
+        for i in range(self.budget):
+            if i < n_init:
+                x_norm = init_points[i]
+                x = x_norm * (ub - lb) + lb
+            else:
+                x = self._propose(lb, ub)
             
-            # Log-Expected Improvement Acquisition
-            def log_ei(x):
-                x = np.atleast_2d(x)
-                mu, sigma = self.gp.predict(x, return_std=True)
-                sigma = np.maximum(sigma, 1e-12)
-                diff = best_y - mu
-                z = diff / sigma
-                # Log-EI is more stable than EI for small improvements
-                val = diff * norm.cdf(z) + sigma * norm.pdf(z)
-                return -val if val > 1e-12 else 0.0
+            y = func(x)
+            self.X_obs.append(x)
+            self.y_obs.append(y)
+            
+            if i > n_init:
+                if y < np.min(self.y_obs[:-1]):
+                    self.tr_length = min(self.max_tr, self.tr_length * 1.2)
+                else:
+                    self.tr_length = max(self.min_tr, self.tr_length * 0.8)
+            
+        best_idx = np.argmin(self.y_obs)
+        return float(self.y_obs[best_idx]), np.array(self.X_obs[best_idx])
 
-            # Optimize acquisition with multi-start
-            best_acq = np.inf
-            next_x = None
-            
-            # Start points: incumbent + random candidates
-            starts = [best_x] + [np.random.uniform(lb, ub) for _ in range(5)]
-            for x0 in starts:
-                res = minimize(log_ei, x0, bounds=list(zip(lb, ub)), method='L-BFGS-B')
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
-            
-            # Fallback for numerical failure or zero acquisition
-            if next_x is None or best_acq == 0.0:
-                next_x = np.random.uniform(lb, ub)
-            
-            # Ensure next_x is distinct from existing to avoid GP singularity
-            dist = np.linalg.norm(X_obs - next_x, axis=1)
-            if np.min(dist) < 1e-6:
-                next_x = np.random.uniform(lb, ub)
-
-            y_new = func(next_x)
-            
-            X_obs = np.vstack([X_obs, next_x])
-            y_obs = np.append(y_obs, y_new)
-            
-            if y_new < best_y:
-                best_y = float(y_new)
-                best_x = next_x.copy()
+    def _propose(self, lb, ub):
+        X_norm = (np.array(self.X_obs) - lb) / (ub - lb)
+        y = np.array(self.y_obs)
+        self.gp.fit(X_norm, y)
         
-        return best_y, best_x
+        y_min = np.min(y)
+        best_x_norm = X_norm[np.argmin(y)]
+        
+        def acq(x_norm):
+            x_norm = x_norm.reshape(1, -1)
+            mu, sigma = self.gp.predict(x_norm, return_std=True)
+            imp = y_min - mu
+            z = imp / (sigma + 1e-9)
+            return -(imp * norm.cdf(z) + sigma * norm.pdf(z))
+
+        best_acq_val = np.inf
+        target_x = None
+        
+        # Candidate generation: multi-start L-BFGS-B + random sampling
+        seeds = [best_x_norm] + [np.clip(best_x_norm + np.random.normal(0, self.tr_length, self.dim), 0, 1) for _ in range(8)]
+        for x0 in seeds:
+            try:
+                res = minimize(acq, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+                if res.fun < best_acq_val:
+                    best_acq_val = res.fun
+                    target_x = res.x
+            except: continue
+            
+        if target_x is None:
+            return np.random.uniform(lb, ub)
+        return np.clip(target_x, 0, 1) * (ub - lb) + lb

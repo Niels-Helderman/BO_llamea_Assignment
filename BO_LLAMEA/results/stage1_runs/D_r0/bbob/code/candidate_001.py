@@ -1,73 +1,74 @@
 import numpy as np
+from scipy.stats import norm
 from scipy.optimize import minimize
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
-from scipy.stats import norm
+from sklearn.gaussian_process.kernels import Matern, WhiteKernel, ConstantKernel
 
 class BayesianOptimizer:
     def __init__(self, budget=600, dim=6):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(length_scale=np.ones(dim), nu=2.5) + WhiteKernel(noise_level=1e-8)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=0.0, normalize_y=True, n_restarts_optimizer=0)
+        # Use Matern kernel for flexibility, add small jitter for numerical stability
+        kernel = ConstantKernel(1.0) * Matern(nu=2.5, length_scale=np.ones(dim)) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=kernel, alpha=0.0, normalize_y=True, n_restarts_optimizer=0)
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
+        range_val = ub - lb
         
         X_obs = []
         y_obs = []
         
-        # Initial sampling: Sobol-like simple quasi-random initialization
-        n_init = min(12, self.budget // 4)
-        for i in range(n_init):
-            x = lb + (ub - lb) * (np.random.rand(self.dim))
-            X_obs.append(x)
-            y_obs.append(func(x))
-            
-        best_idx = np.argmin(y_obs)
-        best_x = X_obs[best_idx]
-        best_y = y_obs[best_idx]
+        best_y = np.inf
+        best_x = None
 
-        def get_ei(x, gp, y_min):
-            mu, sigma = gp.predict(x.reshape(1, -1), return_std=True)
-            sigma = np.maximum(sigma, 1e-12)
-            with np.errstate(divide='ignore'):
-                z = (y_min - mu) / sigma
-                return (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z)
-
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
-            
-            # Periodically refit hyperparameters
-            if i % 10 == 0:
-                self.gp.kernel = self.kernel
-                self.gp.fit(X_data, y_data)
+        # Initialization: Use a small Latin Hypercube-like spread or random points
+        # 10% of budget or at least dim+2 for GP stability
+        n_init = max(self.dim + 2, int(0.1 * self.budget))
+        
+        for i in range(self.budget):
+            if i < n_init:
+                x = np.random.uniform(lb, ub)
             else:
-                self.gp.fit(X_data, y_data)
+                # Fit GP periodically
+                try:
+                    self.gp.fit(np.array(X_obs), np.array(y_obs))
+                    x = self._propose_next(lb, ub, range_val, y_obs)
+                except:
+                    x = np.random.uniform(lb, ub)
+
+            y = func(x)
             
-            # Maximize EI using L-BFGS-B with multi-start
-            y_min = np.min(y_data)
-            best_acq = -np.inf
-            next_x = None
+            X_obs.append(x)
+            y_obs.append(y)
             
-            for _ in range(5):
-                x0 = lb + (ub - lb) * np.random.rand(self.dim)
-                res = minimize(lambda x: -get_ei(x, self.gp, y_min), x0, bounds=list(zip(lb, ub)), method='L-BFGS-B')
-                if -res.fun > best_acq:
-                    best_acq = -res.fun
-                    next_x = res.x
-            
-            if next_x is None:
-                next_x = lb + (ub - lb) * np.random.rand(self.dim)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y = y_new
-                best_x = next_x
+            if y < best_y:
+                best_y = y
+                best_x = x
                 
-        return float(best_y), best_x
+        return float(best_y), np.array(best_x)
+
+    def _propose_next(self, lb, ub, range_val, y_obs):
+        best_y = min(y_obs)
+        
+        def objective(x):
+            x = x.reshape(1, -1)
+            mu, sigma = self.gp.predict(x, return_std=True)
+            sigma = np.maximum(sigma, 1e-9)
+            with np.errstate(divide='ignore'):
+                z = (best_y - mu) / sigma
+                ei = (best_y - mu) * norm.cdf(z) + sigma * norm.pdf(z)
+            return -ei[0]
+
+        # Multi-start acquisition optimization
+        best_ei = -np.inf
+        proposal = None
+        for _ in range(5):
+            x0 = np.random.uniform(lb, ub)
+            res = minimize(objective, x0, bounds=list(zip(lb, ub)), method='L-BFGS-B')
+            if -res.fun > best_ei:
+                best_ei = -res.fun
+                proposal = res.x
+        
+        return proposal if proposal is not None else np.random.uniform(lb, ub)

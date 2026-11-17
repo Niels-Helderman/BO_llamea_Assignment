@@ -1,70 +1,76 @@
 import numpy as np
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
 from scipy.optimize import minimize
-from scipy.stats import qmc, norm
-from sklearn.ensemble import RandomForestRegressor
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        # RandomForest is robust to high-dimensional input and non-stationary objective functions
-        self.rf = RandomForestRegressor(n_estimators=100, min_samples_split=3, n_jobs=1)
+        # Use ARD kernel to learn length scales per dimension for better dimensionality handling
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5, length_scale=np.ones(dim)) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=2)
+        self.rng = np.random.RandomState(42)
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
         
-        # 1. Initialization using Sobol sequence for better space filling than random
-        n_init = 2 * self.dim + 5
+        n_init = max(2 * self.dim, 10)
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = qmc.scale(sampler.random(n_init), lb, ub)
-        y_obs = np.array([func(x) for x in X_obs])
+        init_points = sampler.random(n_init)
         
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
+        X_obs, y_obs = [], []
         
-        # 2. Sequential Optimization
-        for i in range(n_init, self.budget):
-            # Standardize y for the forest
-            y_mean, y_std = np.mean(y_obs), np.std(y_obs) + 1e-8
-            y_norm = (y_obs - y_mean) / y_std
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
+            else:
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
             
-            self.rf.fit(X_obs, y_norm)
+            y = func(x)
+            X_obs.append(x)
+            y_obs.append(y)
             
-            # Acquisition: Expected Improvement over observed minimum
-            def ei_acq(x):
-                x = np.atleast_2d(x)
-                preds = [tree.predict(x) for tree in self.rf.estimators_]
-                mu = np.mean(preds, axis=0)
-                sigma = np.std(preds, axis=0) + 1e-9
-                
-                y_best_norm = (best_y - y_mean) / y_std
-                diff = y_best_norm - mu
-                z = diff / sigma
-                return -(diff * norm.cdf(z) + sigma * norm.pdf(z))
+        best_idx = np.argmin(y_obs)
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
 
-            # Multi-start acquisition optimization
-            best_acq = np.inf
-            next_x = None
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        y = np.array(y)
+        
+        # Periodic hyperparameter optimization
+        self.gp.fit(X_norm, y)
+        
+        y_min = np.min(y)
+        
+        def ei(x_norm):
+            x_norm = x_norm.reshape(1, -1)
+            mu, sigma = self.gp.predict(x_norm, return_std=True)
+            with np.errstate(divide='ignore'):
+                imp = y_min - mu
+                z = imp / (sigma + 1e-9)
+                res = imp * norm.cdf(z) + sigma * norm.pdf(z)
+            return -res.flatten()
+
+        # Multi-start acquisition optimization
+        best_acq = -np.inf
+        target_x = None
+        
+        # Start search from incumbent and random spots
+        starts = [X_norm[np.argmin(y)]]
+        starts.extend(self.rng.rand(8, self.dim))
+        
+        for x0 in starts:
+            try:
+                res = minimize(ei, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+                if -res.fun > best_acq:
+                    best_acq = -res.fun
+                    target_x = res.x
+            except:
+                continue
             
-            # Candidates: best_x + random samples
-            pool = np.vstack([best_x, qmc.scale(sampler.random(10), lb, ub)])
-            for x0 in pool:
-                res = minimize(ei_acq, x0, bounds=list(zip(lb, ub)), method='L-BFGS-B')
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
-            
-            # Fallback if optimization fails
-            if next_x is None:
-                next_x = np.random.uniform(lb, ub)
-            
-            # Evaluate objective
-            y_new = func(next_x)
-            X_obs = np.vstack([X_obs, next_x])
-            y_obs = np.append(y_obs, y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                
-        return best_y, best_x
+        if target_x is None:
+            return self.rng.uniform(lb, ub)
+        return np.clip(target_x, 0, 1) * (ub - lb) + lb

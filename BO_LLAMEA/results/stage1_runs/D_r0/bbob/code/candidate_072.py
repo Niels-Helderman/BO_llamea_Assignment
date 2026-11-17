@@ -1,80 +1,70 @@
 import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from scipy.stats import norm, qmc
 from scipy.optimize import minimize
-from scipy.stats import qmc, norm
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        # ARD Matern kernel: length_scale per dimension is crucial for high-dimensional efficiency
-        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5, length_scale=np.ones(dim)) + WhiteKernel(noise_level=1e-10)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
+        # Using Random Forest as an ensemble surrogate to handle non-stationary objective functions
+        self.model = RandomForestRegressor(n_estimators=50, min_samples_split=2, n_jobs=1)
+        self.tr_length = 0.5 
+        self.min_tr = 0.05
+        self.max_tr = 0.8
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        range_val = ub - lb
-        
-        # Sobol sequence for better space filling
+        # Sufficient initial design for 6D
         n_init = 2 * self.dim + 4
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_init = qmc.scale(sampler.random(n_init), lb, ub)
+        init_points = sampler.random(n_init)
         
         X_obs, y_obs = [], []
-        for x in X_init:
-            X_obs.append(x)
-            y_obs.append(func(x))
-            
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
-        
-        tr_size = 0.5 
-        
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
-            
-            # Periodic hyperparameter optimization
-            if i % 10 == 0:
-                self.gp.n_restarts_optimizer = 3
-                try:
-                    self.gp.fit(X_data, y_data)
-                except:
-                    pass
-            
-            # Expected Improvement
-            def ei(x):
-                x = x.reshape(1, -1)
-                mu, sigma = self.gp.predict(x, return_std=True)
-                sigma = np.maximum(sigma, 1e-9)
-                imp = best_y - mu
-                z = imp / sigma
-                return -(imp * norm.cdf(z) + sigma * norm.pdf(z))
-
-            # Adaptive Trust Region
-            tr_lb = np.maximum(lb, best_x - tr_size * range_val)
-            tr_ub = np.minimum(ub, best_x + tr_size * range_val)
-            
-            best_acq, next_x = np.inf, None
-            # Multi-start optimization
-            starts = [best_x] + [np.random.uniform(tr_lb, tr_ub) for _ in range(5)]
-            for x0 in starts:
-                res = minimize(ei, x0, bounds=list(zip(tr_lb, tr_ub)), method='L-BFGS-B')
-                if res.fun < best_acq:
-                    best_acq, next_x = res.fun, res.x
-            
-            if next_x is None: next_x = np.random.uniform(tr_lb, tr_ub)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                tr_size = min(1.0, tr_size * 1.2)
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
             else:
-                tr_size = max(0.05, tr_size * 0.9)
-                
-        return best_y, best_x
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
+            
+            y = float(func(x))
+            X_obs.append(x)
+            y_obs.append(y)
+            
+        best_idx = np.argmin(y_obs)
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
+
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        self.model.fit(X_norm, y)
+        y_min = np.min(y)
+        best_x_norm = X_norm[np.argmin(y)]
+        
+        # Acquisition: Expected Improvement using Forest variance as uncertainty estimate
+        def acq(x_n):
+            x_n = x_n.reshape(1, -1)
+            preds = np.array([tree.predict(x_n)[0] for tree in self.model.estimators_])
+            mu = np.mean(preds)
+            sigma = np.std(preds) + 1e-9
+            z = (y_min - mu) / sigma
+            return -( (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z) )
+
+        best_acq_val = np.inf
+        target_x = None
+        
+        # Multi-start optimization
+        candidates = [best_x_norm + np.random.normal(0, self.tr_length, self.dim) for _ in range(15)]
+        candidates.append(np.random.rand(self.dim))
+        
+        for x0 in candidates:
+            try:
+                res = minimize(acq, np.clip(x0, 0, 1), bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-3)
+                if res.fun < best_acq_val:
+                    best_acq_val = res.fun
+                    target_x = res.x
+            except: continue
+            
+        if target_x is None:
+            return np.random.uniform(lb, ub)
+        return np.clip(target_x, 0, 1) * (ub - lb) + lb

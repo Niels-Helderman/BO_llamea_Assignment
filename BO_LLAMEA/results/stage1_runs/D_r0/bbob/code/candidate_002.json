@@ -1,9 +1,9 @@
 {
   "number": 2,
   "class_name": "BayesianOptimizer",
-  "fitness": 0.0,
-  "valid": false,
+  "fitness": 0.33480935130991185,
+  "valid": true,
   "generation": 0,
   "code": "code/candidate_002.py",
-  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 14 evaluations; location=File \"<generated candidate>\", line 43, in __call__; error=sklearn.utils._param_validation.InvalidParameterError: The 'optimizer' parameter of GaussianProcessRegressor must be a str among {'fmin_l_bfgs_b'}, a callable or None. Got 'none' instead."
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.334809; valid=True; mean initial best=106.706; mean final best=80.4384; mean best-so-far at eval [10:105.4, 20:95.4, 40:81.03, 60:80.44]; per-seed AOCC min/max=0.280/0.368; seeds with no improvement after eval 30: 4/10"
 }

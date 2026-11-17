@@ -1,86 +1,78 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
+from scipy.optimize import minimize
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-10)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=1)
+        self.tr_length = 0.5 
+        self.min_tr = 0.02
+        self.max_tr = 0.5
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        range_val = ub - lb
+        n_init = max(self.dim + 1, min(self.budget // 4, 12))
         
-        # Larger robust initial design using Sobol-LHS hybrid
-        n_init = 2 * self.dim + 20
+        # Use Sobol for better space-filling than random
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_init = qmc.scale(sampler.random(n_init), lb, ub)
+        init_points = sampler.random(n_init)
         
         X_obs, y_obs = [], []
-        for x in X_init:
-            X_obs.append(x)
-            y_obs.append(func(x))
-            
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
+        best_y = np.inf
+        best_x = None
         
-        tr_size = 0.5
-        stagnation_counter = 0
-        
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
-            
-            # Efficient hyperparameter fitting frequency
-            if i % 10 == 0:
-                self.gp.n_restarts_optimizer = 1
-                self.gp.fit(X_data, y_data)
-            
-            # Log-EI for stable acquisition
-            def log_ei(x):
-                mu, sigma = self.gp.predict(x.reshape(1, -1), return_std=True)
-                sigma = np.maximum(sigma, 1e-12)
-                diff = best_y - mu
-                z = diff / sigma
-                from scipy.stats import norm
-                # Log(EI) = log(diff * Phi(z) + sigma * phi(z))
-                # Using logsumexp trick: log(exp(a) + exp(b))
-                log_phi = -0.5 * np.log(2 * np.pi) - 0.5 * z**2
-                log_Phi = norm.logcdf(z)
-                return -np.logaddexp(np.log(diff) + log_Phi, np.log(sigma) + log_phi)
-
-            # Adaptive Trust Region
-            tr_lb = np.maximum(lb, best_x - tr_size * range_val)
-            tr_ub = np.minimum(ub, best_x + tr_size * range_val)
-            
-            # Multi-start optimization inside TR
-            candidates = [best_x] + [np.random.uniform(tr_lb, tr_ub) for _ in range(5)]
-            next_x, best_acq = None, np.inf
-            for x0 in candidates:
-                res = minimize(log_ei, x0, bounds=list(zip(tr_lb, tr_ub)), method='L-BFGS-B', tol=1e-3)
-                if res.fun < best_acq:
-                    best_acq, next_x = res.fun, res.x
-            
-            if next_x is None: next_x = np.random.uniform(tr_lb, tr_ub)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                tr_size = min(1.0, tr_size * 1.2)
-                stagnation_counter = 0
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
             else:
-                tr_size = max(0.05, tr_size * 0.8)
-                stagnation_counter += 1
-                if stagnation_counter > 15: # Reset TR on stagnation
-                    tr_size = 0.5
-                    stagnation_counter = 0
-                
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
+            
+            y = float(func(x))
+            X_obs.append(x)
+            y_obs.append(y)
+            
+            if y < best_y:
+                best_y, best_x = y, x
+                if i >= n_init: self.tr_length = min(self.max_tr, self.tr_length * 1.1)
+            elif i >= n_init:
+                self.tr_length = max(self.min_tr, self.tr_length * 0.9)
+            
         return best_y, best_x
+
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        self.gp.fit(X_norm, y)
+        y_min = np.min(y)
+        best_x_norm = X_norm[np.argmin(y)]
+        
+        def acq(x_n):
+            mu, sigma = self.gp.predict(x_n.reshape(1, -1), return_std=True)
+            sigma = np.maximum(sigma, 1e-12)
+            z = (y_min - mu) / sigma
+            return -( (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z) )
+
+        best_acq_val = np.inf
+        target_x = None
+        
+        # Multi-start acquisition optimization within the Trust Region
+        candidates = [best_x_norm]
+        for _ in range(8):
+            candidates.append(np.clip(best_x_norm + np.random.normal(0, self.tr_length, self.dim), 0, 1))
+        
+        for x0 in candidates:
+            try:
+                res = minimize(acq, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-4)
+                if res.fun < best_acq_val:
+                    best_acq_val = res.fun
+                    target_x = res.x
+            except: continue
+            
+        if target_x is None:
+            return np.random.uniform(lb, ub)
+        return np.clip(target_x, 0, 1) * (ub - lb) + lb

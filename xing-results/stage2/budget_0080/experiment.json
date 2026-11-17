@@ -1,0 +1,103 @@
+{
+  "config": {
+    "group_id": 1,
+    "dimension": 6,
+    "problems": {
+      "bbob": {
+        "fid": 1,
+        "instance": 1
+      },
+      "realworld": {
+        "problem_id": 1124
+      }
+    },
+    "llm": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite"
+    },
+    "llamea": {
+      "n_parents": 2,
+      "n_offspring": 2,
+      "elitism": true,
+      "parent_selection": "random"
+    },
+    "stage1": {
+      "max_candidates": 100,
+      "budget": 60,
+      "seed_workers": 4,
+      "timeout_seconds": 240,
+      "progress_every": 2,
+      "aocc": {
+        "lower_log10_error": -6,
+        "upper_log10_error": 2,
+        "bbob_reference": "auto",
+        "realworld_reference": "auto",
+        "scale": "auto",
+        "calibration_points": 32,
+        "calibration_seed": 2026
+      }
+    },
+    "stage2": {
+      "budget": 600,
+      "seed_workers": 4,
+      "timeout_seconds": 1800,
+      "botorch_initial_points": 12,
+      "ioh_logging": false
+    },
+    "prompts": {
+      "bbob": "prompts/bbob.txt",
+      "realworld": "prompts/realworld.txt"
+    }
+  },
+  "seeds": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "budget": 80,
+  "workers": 8,
+  "metrics": {
+    "bbob": {
+      "reference": 79.48,
+      "scale": 58.98920507625225,
+      "lower": -6.0,
+      "upper": 2.0
+    },
+    "realworld": {
+      "reference": 0.0,
+      "scale": 7474.527379617331,
+      "lower": -6.0,
+      "upper": 2.0
+    }
+  },
+  "algorithms": [
+    "generated_bbob",
+    "generated_realworld",
+    "cmaes",
+    "botorch"
+  ],
+  "machine": {
+    "python": "3.12.14 | packaged by Anaconda, Inc. | (main, Aug 27 2026, 14:37:13) [MSC v.1942 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "packages": {
+      "llamea": "1.4.2",
+      "ioh": "0.3.22",
+      "Practical_Problems": "0.1.0",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "cma": "4.5.0",
+      "botorch": "0.18.1",
+      "gpytorch": "1.15.2",
+      "torch": "2.14.0",
+      "matplotlib": "3.11.1",
+      "PyYAML": "6.0.3"
+    }
+  }
+}

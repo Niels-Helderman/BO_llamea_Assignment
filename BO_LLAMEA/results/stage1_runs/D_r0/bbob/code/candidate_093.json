@@ -1,9 +1,9 @@
 {
   "number": 93,
   "class_name": "BayesianOptimizer",
-  "fitness": 0.0,
-  "valid": false,
+  "fitness": 0.2505600543269529,
+  "valid": true,
   "generation": 46,
   "code": "code/candidate_093.py",
-  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 16 evaluations; location=File \"<generated candidate>\", line 55, in __call__; error=TypeError: only 0-dimensional arrays can be converted to Python scalars"
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.250560; valid=True; mean initial best=105.045; mean final best=89.0623; mean best-so-far at eval [10:104, 20:100.5, 40:97.59, 60:89.06]; per-seed AOCC min/max=0.238/0.260; seeds with no improvement after eval 30: 0/10"
 }

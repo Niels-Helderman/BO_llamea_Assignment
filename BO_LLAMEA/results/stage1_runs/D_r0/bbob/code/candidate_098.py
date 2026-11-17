@@ -1,75 +1,69 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import Matern, ConstantKernel
+from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import qmc
+from scipy.optimize import minimize
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5)
-        self.gp = GaussianProcessRegressor(
-            kernel=self.kernel, 
-            alpha=1e-10, 
-            normalize_y=True, 
-            n_restarts_optimizer=0
-        )
+        # Robust kernel for deterministic functions
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=0)
+        self.rng = np.random.RandomState(42)
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
+        n_init = min(self.budget, 2 * self.dim + 4)
         
-        n_init = 2 * self.dim + 2
-        sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = [qmc.scale(sampler.random(), lb, ub).flatten() for _ in range(n_init)]
-        y_obs = [func(x) for x in X_obs]
+        # Sobol sequence for better space coverage
+        sampler = qmc.Sobol(d=self.dim, scramble=True, seed=42)
+        X_init = sampler.random(n_init)
         
+        X_obs, y_obs = [], []
+        for i in range(self.budget):
+            if i < n_init:
+                x_norm = X_init[i]
+            else:
+                x_norm = self._propose(np.array(X_obs), np.array(y_obs))
+            
+            x = x_norm * (ub - lb) + lb
+            y = float(func(x))
+            X_obs.append(x_norm)
+            y_obs.append(y)
+            
         best_idx = np.argmin(y_obs)
-        best_x = X_obs[best_idx]
-        best_y = float(y_obs[best_idx])
-        
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
-            
-            # Refit kernel hyperparams every 25 steps to save time
-            self.gp.n_restarts_optimizer = 2 if i % 25 == 0 else 0
-            try:
-                self.gp.fit(X_data, y_data)
-            except:
-                pass
-            
-            # Adaptive UCB: beta decreases to focus on exploitation
-            beta = 2.0 * np.log((i + 1) * (self.dim + 1))
-            
-            def ucb(x):
-                mu, sigma = self.gp.predict(x.reshape(1, -1), return_std=True)
-                return mu - beta * sigma
+        return float(y_obs[best_idx]), X_obs[best_idx] * (ub - lb) + lb
 
-            # Multi-start acquisition optimization
-            best_acq = np.inf
-            next_x = None
-            
-            # Try global search from random candidates and local search from best_x
-            starts = [best_x] + [np.random.uniform(lb, ub) for _ in range(3)]
-            for start in starts:
-                res = minimize(ucb, start, bounds=list(zip(lb, ub)), method='L-BFGS-B')
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
-            
-            # Fallback if optimization failed
-            if next_x is None:
-                next_x = np.random.uniform(lb, ub)
-            
-            y_new = func(next_x)
-            
-            if y_new < best_y:
-                best_y = float(y_new)
-                best_x = next_x
-            
-            X_obs.append(next_x)
-            y_obs.append(y_new)
+    def _propose(self, X, y):
+        # Adaptive UCB: beta schedule to favor exploration early, exploitation late
+        t = len(y)
+        beta = 2.0 * np.log(t + 1)
+        
+        self.gp.fit(X, y)
+        y_min = np.min(y)
+        
+        def ucb(x_n):
+            mu, sigma = self.gp.predict(x_n.reshape(1, -1), return_std=True)
+            return mu - beta * sigma
+
+        # Multi-start optimization for acquisition function
+        best_val = np.inf
+        best_x = X[np.argmin(y)]
+        
+        # Random candidates + best current point
+        candidates = [np.random.rand(self.dim) for _ in range(20)]
+        candidates.append(X[np.argmin(y)])
+        
+        for x0 in candidates:
+            try:
+                res = minimize(ucb, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+                if res.fun < best_val:
+                    best_val = res.fun
+                    best_x = res.x
+            except:
+                continue
                 
-        return best_y, best_x
+        return np.clip(best_x, 0, 1)

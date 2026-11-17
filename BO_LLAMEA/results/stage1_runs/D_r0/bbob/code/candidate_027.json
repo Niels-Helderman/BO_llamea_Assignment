@@ -1,9 +1,9 @@
 {
   "number": 27,
   "class_name": "BayesianOptimizer",
-  "fitness": 0.0,
-  "valid": false,
+  "fitness": 0.3352491527437717,
+  "valid": true,
   "generation": 13,
   "code": "code/candidate_027.py",
-  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 14 evaluations; location=File \"<generated candidate>\", line 61, in __call__; error=GaussianProcessRegressor does not accept missing values encoded as NaN natively. For supervised learning, you might want to consider sklearn.ensemble.HistGradientBoostingClassifier and Regressor which accept missing values encoded as NaNs natively. Alternatively, it is possible to preprocess the data, for instance by using an imputer transformer in a pipeline or drop samples with missing values. See https://scikit-learn.org/stable/modules/impute.html You can find a list of all estimators that handle NaN values at the following page: https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values"
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.335249; valid=True; mean initial best=108.388; mean final best=79.5428; mean best-so-far at eval [10:107, 20:92.88, 40:80.51, 60:79.54]; per-seed AOCC min/max=0.306/0.346; seeds with no improvement after eval 30: 0/10"
 }

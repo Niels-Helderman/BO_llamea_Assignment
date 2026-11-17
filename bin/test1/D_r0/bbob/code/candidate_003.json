@@ -1,0 +1,9 @@
+{
+  "number": 3,
+  "class_name": "BayesianOptimizer",
+  "fitness": 0.0,
+  "valid": false,
+  "generation": 1,
+  "code": "code/candidate_003.py",
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 12 evaluations; location=File \"<generated candidate>\", line 51, in __call__; error=ValueError: An upper bound is less than the corresponding lower bound."
+}

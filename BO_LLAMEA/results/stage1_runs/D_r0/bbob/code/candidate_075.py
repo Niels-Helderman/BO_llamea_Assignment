@@ -1,74 +1,75 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
+from scipy.optimize import minimize
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        # ARD Matern kernel to learn dimension-specific length scales
-        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5, length_scale=np.ones(dim)) + WhiteKernel(noise_level=1e-10)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
+        # Use ARD (Automatic Relevance Determination) with anisotropic Matern kernel
+        kernel = ConstantKernel(1.0) * Matern(nu=2.5, length_scale=np.ones(dim)) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=kernel, normalize_y=False, n_restarts_optimizer=2)
+        self.tr_length = 0.4
+        self.y_shift = 0.0
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        
-        # Initial space-filling using Sobol
-        n_init = max(2 * self.dim, 12)
+        n_init = max(2 * self.dim + 1, self.budget // 5)
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = list(qmc.scale(sampler.random(n_init), lb, ub))
-        y_obs = [func(x) for x in X_obs]
+        init_points = sampler.random(n_init)
         
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
-        
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
-            
-            # Fit ARD GP with periodic hyperparameter updates
-            if i % 10 == 0:
-                self.gp.n_restarts_optimizer = 3
+        X_obs, y_obs = [], []
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
             else:
-                self.gp.n_restarts_optimizer = 0
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
             
-            try:
-                self.gp.fit(X_data, y_data)
-            except:
-                pass
+            y = float(func(x))
+            X_obs.append(x)
+            y_obs.append(y)
             
-            # Log-EI calculation for robust acquisition
-            def neg_log_ei(x):
-                mu, sigma = self.gp.predict(x.reshape(1, -1), return_std=True)
-                sigma = np.maximum(sigma, 1e-12)
-                diff = best_y - mu
-                z = diff / sigma
-                # Using standard normal CDF/PDF for EI
-                from scipy.stats import norm
-                ei = diff * norm.cdf(z) + sigma * norm.pdf(z)
-                return -ei if ei > 0 else 0
+            # Adaptive Trust Region logic
+            if i >= n_init:
+                if y < np.min(y_obs[:-1]):
+                    self.tr_length = min(0.8, self.tr_length * 1.1)
+                else:
+                    self.tr_length = max(0.05, self.tr_length * 0.9)
+            
+        best_idx = np.argmin(y_obs)
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
 
-            # Multi-start optimization with a global component and a shrinking local one
-            res_candidates = []
-            for _ in range(5):
-                # Mix random sampling with local exploitation around current best
-                x0 = best_x + np.random.normal(0, 0.1 * (ub - lb) * (1 - i / self.budget), size=self.dim)
-                x0 = np.clip(x0, lb, ub)
-                res = minimize(neg_log_ei, x0, bounds=list(zip(lb, ub)), method='L-BFGS-B', tol=1e-4)
-                res_candidates.append((res.fun, res.x))
+    def _propose(self, X, y, lb, ub):
+        # Log-transform target to handle potentially non-Gaussian objective distributions
+        y_arr = np.array(y)
+        self.y_shift = np.min(y_arr) - 1e-3
+        y_log = np.log(y_arr - self.y_shift + 1e-6)
+        
+        X_norm = (X - lb) / (ub - lb)
+        self.gp.fit(X_norm, y_log)
+        
+        y_min_log = np.min(y_log)
+        best_x_norm = X_norm[np.argmin(y_log)]
+        
+        def acq(x_n):
+            mu, sigma = self.gp.predict(x_n.reshape(1, -1), return_std=True)
+            sigma = np.clip(sigma, 1e-10, None)
+            z = (y_min_log - mu) / sigma
+            return -( (y_min_log - mu) * norm.cdf(z) + sigma * norm.pdf(z) )
+
+        # Multi-start optimization with local bias (Trust Region)
+        best_acq_val, target_x = np.inf, None
+        starts = [best_x_norm] + [np.clip(best_x_norm + np.random.normal(0, self.tr_length, self.dim), 0, 1) for _ in range(8)]
+        starts.append(np.random.rand(self.dim))
+        
+        for x0 in starts:
+            try:
+                res = minimize(acq, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+                if res.fun < best_acq_val:
+                    best_acq_val, target_x = res.fun, res.x
+            except: continue
             
-            # Select the best acquisition point
-            next_x = min(res_candidates, key=lambda x: x[0])[1]
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y = float(y_new)
-                best_x = next_x
-                
-        return best_y, best_x
+        return np.clip(target_x, 0, 1) * (ub - lb) + lb if target_x is not None else np.random.uniform(lb, ub)

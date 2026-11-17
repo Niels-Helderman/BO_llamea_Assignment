@@ -1,9 +1,9 @@
 {
   "number": 31,
   "class_name": "BayesianOptimizer",
-  "fitness": 0.0,
-  "valid": false,
+  "fitness": 0.4418089025105417,
+  "valid": true,
   "generation": 15,
   "code": "code/candidate_031.py",
-  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 13 evaluations; location=File \"<generated candidate>\", line 35, in __call__; error=ValueError: Invalid parameter WhiteKernel for kernel Sum. Check the list of available parameters with `kernel.get_params().keys()`."
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.441809; valid=True; mean initial best=105; mean final best=79.482; mean best-so-far at eval [10:104.1, 20:92.71, 40:79.49, 60:79.48]; per-seed AOCC min/max=0.407/0.479; seeds with no improvement after eval 30: 0/10"
 }

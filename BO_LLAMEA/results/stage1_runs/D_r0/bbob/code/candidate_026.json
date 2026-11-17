@@ -1,9 +1,9 @@
 {
   "number": 26,
   "class_name": "BayesianOptimizer",
-  "fitness": 0.0,
-  "valid": false,
+  "fitness": 0.4679872678466285,
+  "valid": true,
   "generation": 12,
   "code": "code/candidate_026.py",
-  "feedback": "Fitness (mean AOCC across 10 runs): 0.000000; valid=False; failed after 22 evaluations; location=File \"<generated candidate>\", line 53, in <listcomp>; error=ValueError: Sample is not a 2D array"
+  "feedback": "Fitness (mean AOCC across 10 runs): 0.467987; valid=True; mean initial best=107.09; mean final best=79.4838; mean best-so-far at eval [10:107.1, 20:82.04, 40:79.48, 60:79.48]; per-seed AOCC min/max=0.444/0.496; seeds with no improvement after eval 30: 0/10"
 }

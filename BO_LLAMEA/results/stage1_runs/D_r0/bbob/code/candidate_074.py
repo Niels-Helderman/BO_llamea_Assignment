@@ -1,76 +1,79 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc, norm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import qmc
+from scipy.optimize import minimize
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-12)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=0)
+        self.tr_length = 0.5 
+        self.min_tr = 0.02
+        self.max_tr = 0.5
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        range_val = ub - lb
+        # Use a larger initial design for better surrogate grounding in 6D
+        n_init = max(2 * self.dim + 1, min(self.budget // 4, 15))
+        sampler = qmc.LatinHypercube(d=self.dim, scramble=True)
+        init_points = sampler.random(n_init)
         
-        # Initial sampling: 12 + 2*dim is sufficient to warm-start the GP
-        n_init = 12 + 2 * self.dim
-        sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = list(qmc.scale(sampler.random(n_init), lb, ub))
-        y_obs = [func(x) for x in X_obs]
+        X_obs, y_obs = [], []
         
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
-        
-        tr_size = 0.5
-        
-        for i in range(n_init, self.budget):
-            X_arr = np.array(X_obs)
-            y_arr = np.array(y_obs)
-            
-            # Efficient hyperparameter tuning schedule
-            self.gp.n_restarts_optimizer = 3 if i < 150 else 0
-            try:
-                self.gp.fit(X_arr, y_arr)
-            except:
-                pass
-            
-            # Log-EI acquisition function for numerical robustness
-            def log_ei(x):
-                mu, sigma = self.gp.predict(x.reshape(1, -1), return_std=True)
-                sigma = np.maximum(sigma, 1e-9)
-                with np.errstate(divide='ignore'):
-                    z = (best_y - mu) / sigma
-                    return -( (best_y - mu) * norm.cdf(z) + sigma * norm.pdf(z) )
-
-            # Adaptive Trust Region
-            tr_lb = np.maximum(lb, best_x - tr_size * range_val)
-            tr_ub = np.minimum(ub, best_x + tr_size * range_val)
-            
-            next_x = None
-            best_acq = np.inf
-            
-            # Multi-start acquisition optimization
-            starts = [best_x] + [np.random.uniform(tr_lb, tr_ub) for _ in range(6)]
-            for x0 in starts:
-                res = minimize(log_ei, x0, bounds=list(zip(tr_lb, tr_ub)), method='L-BFGS-B', tol=1e-4)
-                if res.fun < best_acq:
-                    best_acq, next_x = res.fun, res.x
-            
-            if next_x is None: next_x = np.random.uniform(tr_lb, tr_ub)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            # Update best and adjust TR based on success
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                tr_size = min(1.0, tr_size * 1.2)
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
             else:
-                tr_size = max(0.02, tr_size * 0.85)
-                
-        return best_y, best_x
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
+            
+            y = float(func(x))
+            X_obs.append(x)
+            y_obs.append(y)
+            
+            # Trust region logic
+            if i >= n_init:
+                if y < np.min(y_obs[:-1]):
+                    self.tr_length = min(1.0, self.tr_length * 1.1)
+                else:
+                    self.tr_length = max(self.min_tr, self.tr_length * 0.9)
+            
+        best_idx = np.argmin(y_obs)
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
+
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        self.gp.fit(X_norm, y)
+        y_min = np.min(y)
+        best_x_norm = X_norm[np.argmin(y)]
+        
+        def acq(x_n):
+            mu, sigma = self.gp.predict(x_n.reshape(1, -1), return_std=True)
+            sigma = np.maximum(sigma, 1e-12)
+            z = (y_min - mu) / sigma
+            # Expected Improvement
+            from scipy.stats import norm
+            ei = (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z)
+            return -ei
+
+        best_acq_val = np.inf
+        target_x = None
+        
+        # Multi-start optimization within the trust region
+        seeds = [best_x_norm] + [np.clip(best_x_norm + np.random.normal(0, self.tr_length, self.dim), 0, 1) for _ in range(8)]
+        seeds.append(np.random.rand(self.dim))
+        
+        for x0 in seeds:
+            try:
+                res = minimize(acq, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+                if res.fun < best_acq_val:
+                    best_acq_val = res.fun
+                    target_x = res.x
+            except: continue
+            
+        if target_x is None:
+            return np.random.uniform(lb, ub)
+        return np.clip(target_x, 0, 1) * (ub - lb) + lb

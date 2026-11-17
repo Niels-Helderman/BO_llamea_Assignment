@@ -1,78 +1,77 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.optimize import minimize
+from scipy.stats import qmc
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-10)
-        # Using a small alpha to handle deterministic nature and avoid numerical instability
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-8, normalize_y=True)
+        # Robust kernel with small noise floor for numerical stability
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=0)
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        n_init = 2 * self.dim + 4
         
-        # Sobol sequence for better space filling
+        # Sobol sequence for better space-filling coverage
+        n_init = max(self.dim + 2, min(self.budget // 4, 10))
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = [qmc.scale(sampler.random(1), lb, ub).flatten() for _ in range(n_init)]
-        y_obs = [func(x) for x in X_obs]
+        init_points = sampler.random(n_init)
         
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
+        X_obs, y_obs = [], []
         
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
+            else:
+                # Calculate adaptive beta for UCB: decaying exploration
+                # Start with beta=2.0 (exploration), decay to 0.1 (exploitation)
+                beta = 2.0 * (1.0 - (i / self.budget)**0.5) + 0.1
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub, beta)
             
-            # Periodically re-fit hyperparameters to save time
-            if i % 10 == 0 or i == n_init:
-                try:
-                    self.gp.fit(X_data, y_data)
-                except:
-                    pass
+            y = func(x)
+            X_obs.append(x)
+            y_obs.append(y)
             
-            # Thompson Sampling (Approximate)
-            # Sample a GP posterior to capture exploration vs exploitation
-            try:
-                # We draw from the posterior to find a promising point
-                mu, cov = self.gp.predict(np.random.uniform(lb, ub, (500, self.dim)), return_cov=True)
-                # Fallback to pure acquisition optimization if sampling fails
-            except:
-                pass
-            
-            def acquisition(x):
-                x = np.atleast_2d(x)
-                mu, std = self.gp.predict(x, return_std=True)
-                # Log-EI is more stable than standard EI
-                diff = best_y - mu
-                z = diff / (std + 1e-9)
-                from scipy.stats import norm
-                return -(diff * norm.cdf(z) + std * norm.pdf(z))
+        best_idx = np.argmin(y_obs)
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
 
-            # Multi-start optimization for acquisition
-            next_x = None
-            best_acq = np.inf
-            candidates = [best_x] + [np.random.uniform(lb, ub) for _ in range(6)]
-            for x0 in candidates:
-                res = minimize(acquisition, x0, bounds=list(zip(lb, ub)), method='L-BFGS-B', tol=1e-3)
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
+    def _propose(self, X, y, lb, ub, beta):
+        X_norm = (X - lb) / (ub - lb)
+        y = np.array(y)
+        
+        # Periodically fit GP
+        try:
+            self.gp.fit(X_norm, y)
+        except:
+            return np.random.uniform(lb, ub)
+        
+        def objective(x_norm):
+            x_norm = x_norm.reshape(1, -1)
+            mu, sigma = self.gp.predict(x_norm, return_std=True)
+            # LCB (Lower Confidence Bound) for minimization
+            return mu - beta * sigma
+
+        # Multi-start acquisition optimization
+        best_val = np.inf
+        best_x = None
+        
+        # Use a combination of random search and L-BFGS-B
+        starts = np.vstack([np.random.rand(8, self.dim), X_norm[np.argmin(y)]])
+        
+        for x0 in starts:
+            try:
+                res = minimize(objective, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+                if res.fun < best_val:
+                    best_val = res.fun
+                    best_x = res.x
+            except:
+                continue
             
-            # Ensure next_x is valid
-            if next_x is None:
-                next_x = np.random.uniform(lb, ub)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                
-        return best_y, best_x
+        if best_x is None:
+            return np.random.uniform(lb, ub)
+        
+        return np.clip(best_x, 0, 1) * (ub - lb) + lb

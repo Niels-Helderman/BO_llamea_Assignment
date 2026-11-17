@@ -1,67 +1,68 @@
 import numpy as np
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
 from scipy.optimize import minimize
-from scipy.stats import qmc, norm
-from sklearn.ensemble import RandomForestRegressor
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        # Use an ensemble of 50 trees to estimate uncertainty via variance
-        self.rf = RandomForestRegressor(n_estimators=50, min_samples_split=2, n_jobs=1)
+        # ARD Matern 5/2 kernel is more robust for high-dim scaling
+        self.kernel = ConstantKernel(1.0) * Matern(length_scale=np.ones(dim), nu=2.5, length_scale_bounds=(1e-2, 1e1)) + WhiteKernel(noise_level=1e-10, noise_level_bounds=(1e-11, 1e-3))
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=2)
+        self.X_obs = []
+        self.y_obs = []
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        
-        # Sobol sequence for better space filling
+        n_init = min(self.budget, 2 * self.dim + 2)
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        n_init = 2 * self.dim + 2
-        X_obs = [qmc.scale(sampler.random(1), lb, ub).flatten() for _ in range(n_init)]
-        y_obs = [func(x) for x in X_obs]
+        init_points = sampler.random(n_init)
         
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
+            else:
+                x = self._propose(lb, ub)
+            
+            y = func(x)
+            self.X_obs.append(x)
+            self.y_obs.append(y)
+            
+        best_idx = np.argmin(self.y_obs)
+        return float(self.y_obs[best_idx]), np.array(self.X_obs[best_idx])
+
+    def _propose(self, lb, ub):
+        X = (np.array(self.X_obs) - lb) / (ub - lb)
+        y = np.array(self.y_obs)
         
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
-            
-            # Refit surrogate
-            self.rf.fit(X_data, y_data)
-            
-            # Expected Improvement Acquisition
-            def acquisition(x):
-                x = np.atleast_2d(x)
-                preds = np.array([tree.predict(x)[0] for tree in self.rf.estimators_])
-                mu = np.mean(preds)
-                sigma = np.std(preds) + 1e-9
-                
-                diff = best_y - mu
-                z = diff / sigma
-                ei = diff * norm.cdf(z) + sigma * norm.pdf(z)
-                return -ei # Minimize negative EI
-            
-            # Optimize acquisition with multi-start
-            candidates = [best_x] + [np.random.uniform(lb, ub) for _ in range(10)]
-            best_acq = np.inf
-            next_x = None
-            
-            for x0 in candidates:
-                res = minimize(acquisition, x0, bounds=list(zip(lb, ub)), method='L-BFGS-B')
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
-            
-            # Fallback if optimization fails
-            if next_x is None:
-                next_x = np.random.uniform(lb, ub)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                
-        return best_y, best_x
+        # Periodic GP fitting: refit only if budget allows or significant data added
+        # Using ARD allows the model to ignore irrelevant dimensions
+        self.gp.fit(X, y)
+        
+        y_min = np.min(y)
+        
+        def ei(x_norm):
+            mu, sigma = self.gp.predict(x_norm.reshape(1, -1), return_std=True)
+            with np.errstate(divide='ignore'):
+                z = (y_min - mu) / (sigma + 1e-12)
+                return -( (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z) )
+
+        # Multi-start acquisition optimization
+        best_val = np.inf
+        best_x = None
+        # Candidates: best observed + random points
+        candidates = [X[np.argmin(y)]] + [np.random.rand(self.dim) for _ in range(5)]
+        
+        for x0 in candidates:
+            res = minimize(ei, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+            if res.fun < best_val:
+                best_val = res.fun
+                best_x = res.x
+        
+        if best_x is None:
+            return np.random.uniform(lb, ub)
+        
+        return np.clip(best_x, 0, 1) * (ub - lb) + lb

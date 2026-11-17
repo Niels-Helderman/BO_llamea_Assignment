@@ -1,76 +1,69 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-10)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, alpha=0, n_restarts_optimizer=0)
+        self.sigma_cma = 0.3
+        self.dim_float = float(dim)
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        
-        n_init = 2 * self.dim + 4
+        n_init = max(2, min(self.budget // 4, 2 * self.dim + 2))
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_init = qmc.scale(sampler.random(n_init), lb, ub)
+        init_points = sampler.random(n_init)
         
         X_obs, y_obs = [], []
-        for x in X_init:
-            X_obs.append(x)
-            y_obs.append(func(x))
-            
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
+        best_y, best_x = float('inf'), None
         
-        tr_size = 0.5
-        
-        for i in range(n_init, self.budget):
-            X_data, y_data = np.array(X_obs), np.array(y_obs)
-            
-            # Refit hyperparameters every 10 steps to balance cost and accuracy
-            if i == n_init or i % 10 == 0:
-                self.gp.n_restarts_optimizer = 2
-                try: self.gp.fit(X_data, y_data)
-                except: pass
-            
-            # EI Acquisition function
-            mu_best = np.min(y_data)
-            def ei(x):
-                mu, sigma = self.gp.predict(x.reshape(1, -1), return_std=True)
-                sigma = np.maximum(sigma, 1e-9)
-                z = (mu_best - mu) / sigma
-                from scipy.stats import norm
-                return -( (mu_best - mu) * norm.cdf(z) + sigma * norm.pdf(z) )
-
-            # Optimize acquisition in Trust Region
-            tr_lb = np.maximum(lb, best_x - tr_size * (ub - lb))
-            tr_ub = np.minimum(ub, best_x + tr_size * (ub - lb))
-            
-            next_x = None
-            best_acq = np.inf
-            # Try multiple start points including center and boundaries
-            candidates = [best_x] + [np.random.uniform(tr_lb, tr_ub) for _ in range(12)]
-            for x0 in candidates:
-                res = minimize(ei, x0, bounds=list(zip(tr_lb, tr_ub)), method='L-BFGS-B', tol=1e-4)
-                if res.fun < best_acq:
-                    best_acq, next_x = res.fun, res.x
-            
-            if next_x is None: next_x = np.random.uniform(tr_lb, tr_ub)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            # Adaptive trust region logic
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                tr_size = min(1.0, tr_size * 1.2)
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
             else:
-                tr_size = max(0.05, tr_size * 0.85)
-                
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
+            
+            y = float(func(x))
+            X_obs.append(x)
+            y_obs.append(y)
+            if y < best_y:
+                best_y, best_x = y, x
+            
         return best_y, best_x
+
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        self.gp.fit(X_norm, y)
+        y_min = np.min(y)
+        
+        def ei(x_n):
+            mu, sigma = self.gp.predict(x_n.reshape(-1, self.dim), return_std=True)
+            sigma = np.maximum(sigma, 1e-12)
+            z = (y_min - mu) / sigma
+            return (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z)
+
+        # Simplified (1+1)-CMA-ES style optimization for the acquisition function
+        best_x_norm = X_norm[np.argmin(y)]
+        curr_x = best_x_norm
+        best_val = -1.0
+        
+        for _ in range(30):
+            candidate = np.clip(curr_x + np.random.normal(0, self.sigma_cma, self.dim), 0, 1)
+            val = ei(candidate)
+            if val > best_val:
+                best_val = val
+                curr_x = candidate
+                self.sigma_cma = min(1.0, self.sigma_cma * 1.1)
+            else:
+                self.sigma_cma = max(0.01, self.sigma_cma * 0.9)
+        
+        # Add random perturbation to escape local optima
+        if np.random.rand() < 0.1:
+            curr_x = np.random.rand(self.dim)
+            
+        return np.clip(curr_x, 0, 1) * (ub - lb) + lb

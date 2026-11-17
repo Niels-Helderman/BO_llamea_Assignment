@@ -1,68 +1,71 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc, norm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.optimize import minimize
+from scipy.stats import qmc
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(length_scale=np.ones(dim), nu=2.5) + WhiteKernel(noise_level=1e-10)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
-
-    def _log_ei(self, x, gp, y_min):
-        x = np.atleast_2d(x)
-        mu, sigma = gp.predict(x, return_std=True)
-        sigma = np.clip(sigma, 1e-12, None)
-        with np.errstate(divide='ignore'):
-            z = (y_min - mu) / sigma
-            log_ei = np.log(sigma) + norm.logcdf(z) + np.log(norm.pdf(z) + (z * norm.cdf(z)))
-        return -log_ei.flatten()
-
+        # Use Matern 5/2 as it is robust for black-box optimization
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-10)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=0)
+        
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        n_init = max(2 * self.dim + 2, 10)
         
-        sampler = qmc.LatinHypercube(d=self.dim)
-        X_obs = qmc.scale(sampler.random(n_init), lb, ub).tolist()
-        y_obs = [func(x) for x in X_obs]
+        # Use Sobol sequence for initial coverage
+        n_init = min(self.budget, 2 * self.dim + 2)
+        sampler = qmc.Sobol(d=self.dim, scramble=True)
+        init_points = sampler.random(n_init)
         
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
+        X_obs, y_obs = [], []
         
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
+            else:
+                # Calculate dynamic beta for UCB: explore more early, exploit late
+                progress = i / self.budget
+                beta = 2.0 * (1.0 - progress) + 0.5
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub, beta)
             
-            # Periodically update hyperparameters: every 10 steps or if early
-            self.gp.optimizer = 'fmin_l_bfgs_b' if (i % 10 == 0 or i < n_init + 5) else None
+            y = func(x)
+            X_obs.append(x)
+            y_obs.append(y)
+            
+        best_idx = np.argmin(y_obs)
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
+
+    def _propose(self, X, y, lb, ub, beta):
+        X_norm = (X - lb) / (ub - lb)
+        self.gp.fit(X_norm, y)
+        
+        def ucb(x_norm):
+            x_norm = x_norm.reshape(1, -1)
+            mu, sigma = self.gp.predict(x_norm, return_std=True)
+            return (mu - beta * sigma).flatten()
+
+        # Multi-start optimization of the acquisition function
+        best_val = np.inf
+        best_x = None
+        
+        # Candidates from random sampling + local optimization
+        n_candidates = 20
+        candidates = np.random.rand(n_candidates, self.dim)
+        
+        for x0 in candidates:
             try:
-                self.gp.fit(X_data, y_data)
+                res = minimize(ucb, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B')
+                if res.fun < best_val:
+                    best_val = res.fun
+                    best_x = res.x
             except:
-                pass
-            
-            next_x = None
-            y_min = np.min(y_data)
-            
-            # Multi-start acquisition optimization
-            candidates = [best_x] + [lb + (ub - lb) * np.random.rand(self.dim) for _ in range(10)]
-            best_acq = np.inf
-            for x0 in candidates:
-                res = minimize(lambda x: self._log_ei(x, self.gp, y_min), x0, bounds=list(zip(lb, ub)), method='L-BFGS-B')
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
-            
-            if next_x is None:
-                next_x = lb + (ub - lb) * np.random.rand(self.dim)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
+                continue
                 
-        return best_y, best_x
+        if best_x is None:
+            best_x = np.random.rand(self.dim)
+            
+        return np.clip(best_x, 0, 1) * (ub - lb) + lb

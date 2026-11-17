@@ -1,0 +1,90 @@
+{
+  "config": {
+    "group_id": 1,
+    "dimension": 6,
+    "problems": {
+      "bbob": {
+        "fid": 1,
+        "instance": 1
+      },
+      "realworld": {
+        "problem_id": 1124
+      }
+    },
+    "llm": {
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite"
+    },
+    "llamea": {
+      "n_parents": 2,
+      "n_offspring": 2,
+      "elitism": true,
+      "parent_selection": "random"
+    },
+    "stage1": {
+      "max_candidates": 100,
+      "budget": 60,
+      "seed_workers": 4,
+      "timeout_seconds": 240,
+      "progress_every": 2,
+      "aocc": {
+        "lower_log10_error": -6,
+        "upper_log10_error": 2,
+        "bbob_reference": "auto",
+        "realworld_reference": "auto",
+        "scale": "auto",
+        "calibration_points": 32,
+        "calibration_seed": 2026
+      }
+    },
+    "stage2": {
+      "budget": 600,
+      "seed_workers": 4,
+      "timeout_seconds": 1800,
+      "botorch_initial_points": 12,
+      "ioh_logging": false
+    },
+    "prompts": {
+      "bbob": "prompts/bbob.txt",
+      "realworld": "prompts/realworld.txt"
+    }
+  },
+  "target": "realworld",
+  "metric": {
+    "reference": 0.0,
+    "scale": 7474.527379617331,
+    "lower": -6.0,
+    "upper": 2.0
+  },
+  "signature": "383ad62016ca69ef81295f770dbcca347acff85af3c30960895479318142988c",
+  "seeds": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "machine": {
+    "python": "3.12.14 | packaged by Anaconda, Inc. | (main, Aug 27 2026, 14:37:13) [MSC v.1942 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "packages": {
+      "llamea": "1.4.2",
+      "ioh": "0.3.22",
+      "Practical_Problems": "0.1.0",
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "cma": "4.5.0",
+      "botorch": "0.18.1",
+      "gpytorch": "1.15.2",
+      "torch": "2.14.0",
+      "matplotlib": "3.11.1",
+      "PyYAML": "6.0.3"
+    }
+  },
+  "prompt": "Design a robust Bayesian optimization algorithm for MINIMIZING a six-dimensional real-world numerical black-box objective from Practical_Problems. The task may have a very different objective scale from BBOB; make no assumptions that its objective optimum is zero, or that observed objective magnitudes are near 1. Selection rewards mean early convergence across ten seeds.\n\nRequired interface: exactly one complete Python class with __init__(self, budget, dim) and __call__(self, func) returning (best_y, best_x). Only query the objective as func(x), with one finite NumPy vector of shape (dim,) within func.bounds.lb / func.bounds.ub. Every call, including initialization, counts toward the EXACT budget. Return best_y as a Python float and best_x as a finite (dim,) vector. No filesystem, network, subprocess or GPU dependency. Respect externally seeded randomness; do not call np.random.seed with a constant.\n\nNumerical reliability and quality:\n- Scale domain inputs to [0,1]^dim; center/standardize y based on observed values so GP fitting and acquisition optimization work across objective magnitudes. Maintain X shape (n,dim), y shape (n,), and finite scalar acquisition outputs.\n- Prefer tested probabilistic surrogate implementations (scikit-learn or BoTorch where appropriate); avoid unnecessary handmade GP matrix algebra. Use reasonable noise/jitter to prevent singular fits; handle genuine noise if present.\n- Select candidate points with an exploration/exploitation strategy appropriate to the observations; avoid duplicate points, unproductive boundary-only selection, and unnecessarily expensive acquisition searches.\n- When surrogate fitting or acquisition optimization fails, use a valid bounded fallback query instead of raising an exception or exceeding budget.\n- The SAME generated class must remain computationally practical at 600 calls in Stage 2: limit expensive GP hyperparameter fitting, reuse fitted model quantities, and use a practical fitting schedule as data grows. Do not terminate merely after a long interval without improvement.\n\nCheck array broadcasting, return scalars, the first acquisition calculation, numerical fallbacks, and the objective-call budget. Provide executable Python code, not pseudocode. Use LLaMEA's previous code and evaluation feedback to repair exact failures and improve convergence.\n\nMandatory interface: one class with __init__(self, budget, dim) and __call__(self, func), returning (best_y, best_x). The six-dimensional minimization objective is callable ONLY as func(x); its bounds are func.bounds.lb and func.bounds.ub. Each invocation must use at most budget black-box function calls including initialization; no file, network or subprocess side effects.\n"
+}

@@ -1,76 +1,70 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc, norm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import qmc
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        # ARD Matern: length_scale is a vector of size (dim,)
-        self.kernel = ConstantKernel(1.0) * Matern(length_scale=np.ones(dim), nu=2.5) + WhiteKernel(noise_level=1e-10)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
+        # ARD Matern kernel with Automatic Relevance Determination
+        kernel = ConstantKernel(1.0) * Matern(length_scale=np.ones(dim), nu=2.5) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=kernel, normalize_y=False, n_restarts_optimizer=2)
+        self.y_log = False
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
         
-        # Initialization
-        n_init = 2 * self.dim + 4
+        X_obs = []
+        y_obs = []
+        
+        n_init = max(2, min(self.budget // 4, 2 * self.dim))
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = qmc.scale(sampler.random(n_init), lb, ub).tolist()
-        y_obs = [func(x) for x in X_obs]
+        init_points = sampler.random(n_init)
         
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
-        
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
-            
-            # Periodically re-optimize hyperparameters to handle growing data
-            if i % 15 == 0:
-                self.gp.n_restarts_optimizer = 3
-            else:
-                self.gp.n_restarts_optimizer = 0
-                
-            try:
-                self.gp.fit(X_data, y_data)
-            except:
-                pass
-            
-            # Log-Expected Improvement acquisition
-            y_min = np.min(y_data)
-            def log_ei(x):
-                mu, sigma = self.gp.predict(x.reshape(1, -1), return_std=True)
-                sigma = np.maximum(sigma, 1e-12)
-                with np.errstate(divide='ignore'):
-                    z = (y_min - mu) / sigma
-                    log_ei_val = (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z)
-                return -log_ei_val[0]
+        best_y = np.inf
+        best_x = None
 
-            # Global-local hybrid search strategy
-            best_acq = np.inf
-            next_x = None
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
+            else:
+                x = self._acquire(np.array(X_obs), np.array(y_obs), lb, ub)
             
-            # Start from current best and several random points to avoid local traps
-            candidates = [best_x] + [np.random.uniform(lb, ub) for _ in range(5)]
-            for x0 in candidates:
-                res = minimize(log_ei, x0, bounds=list(zip(lb, ub)), method='L-BFGS-B', tol=1e-4)
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
+            y = float(func(x))
+            X_obs.append(x)
+            y_obs.append(y)
             
-            # Fallback if optimization failed
-            if next_x is None:
-                next_x = np.random.uniform(lb, ub)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
+            if y < best_y:
+                best_y, best_x = y, x
                 
         return best_y, best_x
+
+    def _acquire(self, X, y, lb, ub):
+        # Apply log transform if values are positive to handle heavy-tailed BBOB landscapes
+        y_trans = np.log(y - np.min(y) + 1e-6)
+        X_norm = (X - lb) / (ub - lb)
+        
+        try:
+            self.gp.fit(X_norm, y_trans)
+        except:
+            return np.random.uniform(lb, ub)
+        
+        # Thompson Sampling / Expected Improvement approximation via Monte Carlo
+        n_candidates = 500
+        candidates = np.random.rand(n_candidates, self.dim)
+        
+        # Generate a sample from the GP posterior at candidate points
+        mu, cov = self.gp.predict(candidates, return_cov=True)
+        # Add jitter for numerical stability
+        eps = np.random.normal(0, 1, n_candidates)
+        # Cholesky decomposition of posterior covariance
+        try:
+            L = np.linalg.cholesky(cov + np.eye(n_candidates) * 1e-6)
+            f_sample = mu + L @ eps
+            idx = np.argmin(f_sample)
+        except np.linalg.LinAlgError:
+            idx = np.argmin(mu)
+            
+        return candidates[idx] * (ub - lb) + lb

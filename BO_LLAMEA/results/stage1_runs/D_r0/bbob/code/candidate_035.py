@@ -1,70 +1,77 @@
 import numpy as np
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
 from scipy.optimize import minimize
-from scipy.stats import qmc, norm
-from sklearn.ensemble import RandomForestRegressor
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        # Random Forest provides non-parametric uncertainty via variance of tree predictions
-        self.model = RandomForestRegressor(n_estimators=50, min_samples_split=2, n_jobs=1)
+        # ARD Matern kernel to allow different lengthscales per dimension
+        self.kernel = ConstantKernel(1.0) * Matern(length_scale=np.ones(dim), nu=2.5) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=2)
+        self.best_y = np.inf
+        self.best_x = None
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
         
         # Initial sampling using Sobol
-        n_init = 2 * self.dim + 2
+        n_init = min(self.budget, 2 * self.dim + 2)
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = qmc.scale(sampler.random(n_init), lb, ub).tolist()
-        y_obs = [func(x) for x in X_obs]
+        init_points = sampler.random(n_init)
         
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
+        X_obs, y_obs = [], []
         
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
+        for i in range(self.budget):
+            if i < n_init:
+                x_norm = init_points[i]
+                x = x_norm * (ub - lb) + lb
+            else:
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
             
-            # Fit ensemble
-            self.model.fit(X_data, y_data)
+            y = func(x)
+            if y < self.best_y:
+                self.best_y = y
+                self.best_x = x
             
-            # Acquisition: Expected Improvement (EI)
-            # Use ensemble variance to estimate predictive uncertainty
-            preds = np.array([tree.predict(X_data) for tree in self.model.estimators_])
-            mu = np.mean(preds, axis=0)
-            sigma = np.std(preds, axis=0) + 1e-9
+            X_obs.append(x)
+            y_obs.append(y)
             
-            def ei(x):
-                x = np.atleast_2d(x)
-                mu_x = self.model.predict(x)
-                # Compute std from ensemble dispersion
-                std_x = np.std([tree.predict(x) for tree in self.model.estimators_], axis=0) + 1e-9
+            # Periodically re-fit hyperparameters as data grows
+            if i > n_init and (i % 10 == 0):
+                self.gp.n_restarts_optimizer = 1
+            else:
+                self.gp.n_restarts_optimizer = 0
                 
-                diff = best_y - mu_x
-                z = diff / std_x
-                return -(diff * norm.cdf(z) + std_x * norm.pdf(z))
-            
-            # Multi-start acquisition optimization
-            best_acq = np.inf
-            next_x = None
-            candidates = [best_x] + [np.random.uniform(lb, ub) for _ in range(10)]
-            
-            for x0 in candidates:
-                res = minimize(ei, x0, bounds=list(zip(lb, ub)), method='L-BFGS-B')
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
-            
-            if next_x is None:
-                next_x = np.random.uniform(lb, ub)
-                
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                
-        return best_y, best_x
+        return float(self.best_y), np.array(self.best_x)
+
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        self.gp.fit(X_norm, y)
+        
+        y_min = np.min(y)
+        
+        def acq(x_norm):
+            mu, sigma = self.gp.predict(x_norm.reshape(1, -1), return_std=True)
+            with np.errstate(divide='ignore'):
+                imp = y_min - mu
+                z = imp / (sigma + 1e-12)
+                ei = imp * norm.cdf(z) + sigma * norm.pdf(z)
+            return -ei.flatten()
+
+        # Multi-start optimization of EI
+        best_x_norm = None
+        min_acq = 0
+        for x0 in np.random.uniform(0, 1, size=(5, self.dim)):
+            res = minimize(acq, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B')
+            if res.fun < min_acq:
+                min_acq = res.fun
+                best_x_norm = res.x
+        
+        if best_x_norm is None:
+            return np.random.uniform(lb, ub)
+        
+        return np.clip(best_x_norm, 0, 1) * (ub - lb) + lb

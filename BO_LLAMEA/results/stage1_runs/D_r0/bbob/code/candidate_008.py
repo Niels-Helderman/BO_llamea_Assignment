@@ -1,78 +1,79 @@
 import numpy as np
-from scipy.optimize import minimize
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
 from scipy.stats import norm
+from scipy.optimize import minimize
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(length_scale=np.ones(dim), nu=2.5) + WhiteKernel(noise_level=1e-10)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5, length_scale_bounds=(1e-2, 1e2)) + WhiteKernel(noise_level=1e-10)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=0)
+        self.tr_length = 0.5 
+        self.min_tr = 0.05
+        self.max_tr = 0.5
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        range_val = ub - lb
-        
-        # Increased initial samples (n_init = 2 * dim + 5) to jump-start the model
-        n_init = 2 * self.dim + 5
         X_obs, y_obs = [], []
         
-        # Structured LHS-style initialization
-        for i in range(n_init):
-            x = lb + (ub - lb) * (np.random.rand(self.dim) + np.arange(self.dim)) / (n_init + self.dim)
-            x = np.clip(x, lb, ub)
+        # Increase initial exploration to cover space better in first 30% of budget
+        n_init = max(2 * self.dim + 1, self.budget // 4)
+        
+        for i in range(self.budget):
+            if i < n_init:
+                # Sobol-like spread using jittered uniform
+                x = np.random.uniform(lb, ub)
+            else:
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
+            
+            y = func(x)
             X_obs.append(x)
-            y_obs.append(func(x))
+            y_obs.append(y)
             
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
-        
-        tr_scale = 0.5
-        
-        def get_ei(x, gp, y_min):
-            mu, sigma = gp.predict(x.reshape(1, -1), return_std=True)
-            sigma = np.maximum(sigma, 1e-12)
-            z = (y_min - mu) / sigma
-            return (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z)
+            # Simple adaptive TR update based on improvement
+            if i > n_init:
+                if y < np.min(y_obs[:-1]):
+                    self.tr_length = min(self.max_tr, self.tr_length * 1.2)
+                else:
+                    self.tr_length = max(self.min_tr, self.tr_length * 0.8)
+            
+        best_idx = np.argmin(y_obs)
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
 
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
-            
-            # Fit GP with warm-start logic
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        y = np.array(y)
+        
+        # Periodic GP fit
+        self.gp.fit(X_norm, y)
+        
+        y_min = np.min(y)
+        best_x_norm = (X[np.argmin(y)] - lb) / (ub - lb)
+        
+        def objective(x_norm):
+            x_norm = x_norm.reshape(1, -1)
+            mu, sigma = self.gp.predict(x_norm, return_std=True)
+            with np.errstate(divide='ignore'):
+                imp = y_min - mu
+                z = imp / (sigma + 1e-9)
+                ei = imp * norm.cdf(z) + sigma * norm.pdf(z)
+            return -ei.flatten()
+
+        # Multi-start acquisition optimization within TR
+        best_acq = -np.inf
+        target_x = None
+        for _ in range(8):
+            x0 = np.clip(best_x_norm + np.random.normal(0, self.tr_length / 2, self.dim), 0, 1)
             try:
-                self.gp.fit(X_data, y_data)
-            except:
-                pass
-            
-            y_min = np.min(y_data)
-            next_x = None
-            best_acq = -1.0
-            
-            # Hybrid search: Global + Trust Region
-            search_attempts = [best_x + tr_scale * range_val * (np.random.rand(self.dim) - 0.5),
-                               lb + (ub - lb) * np.random.rand(self.dim)]
-            
-            for x0 in search_attempts:
-                res = minimize(lambda x: -get_ei(x, self.gp, y_min), x0, bounds=list(zip(lb, ub)), method='L-BFGS-B')
+                res = minimize(objective, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-3)
                 if -res.fun > best_acq:
                     best_acq = -res.fun
-                    next_x = res.x
+                    target_x = res.x
+            except: continue
             
-            if next_x is None:
-                next_x = lb + (ub - lb) * np.random.rand(self.dim)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                tr_scale = min(0.6, tr_scale * 1.2)
-            else:
-                tr_scale = max(0.1, tr_scale * 0.8)
-                
-        return best_y, best_x
+        if target_x is None:
+            return np.random.uniform(lb, ub)
+        return np.clip(target_x, 0, 1) * (ub - lb) + lb

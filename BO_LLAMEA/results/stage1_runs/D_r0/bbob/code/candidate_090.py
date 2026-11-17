@@ -1,77 +1,68 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc, norm
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import Matern, ConstantKernel
+from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
+from scipy.optimize import minimize, differential_evolution
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5)
-        self.gp = GaussianProcessRegressor(
-            kernel=self.kernel, 
-            alpha=1e-8, 
-            normalize_y=True, 
-            n_restarts_optimizer=0
-        )
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-10)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=0)
+        self.tr_length = 0.5 
+        self.min_tr = 0.05
+        self.max_tr = 0.8
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        
-        # Sobol sequence for better space filling
-        n_init = max(2 * self.dim + 2, 10)
+        n_init = min(self.budget, 2 * self.dim + 2)
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = qmc.scale(sampler.random(n_init), lb, ub)
-        y_obs = np.array([func(x) for x in X_obs])
+        init_points = sampler.random(n_init)
         
+        X_obs, y_obs = [], []
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
+            else:
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
+            
+            y = float(func(x))
+            X_obs.append(x)
+            y_obs.append(y)
+            
+            # TR Adaptation
+            if i >= n_init:
+                if y < np.min(y_obs[:-1]):
+                    self.tr_length = min(self.max_tr, self.tr_length * 1.1)
+                else:
+                    self.tr_length = max(self.min_tr, self.tr_length * 0.9)
+            
         best_idx = np.argmin(y_obs)
-        best_x = X_obs[best_idx]
-        best_y = float(y_obs[best_idx])
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
+
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        self.gp.fit(X_norm, y)
+        y_min = np.min(y)
+        best_x_norm = X_norm[np.argmin(y)]
         
-        # Acquisition function: Expected Improvement
-        def ei(x, model, y_min):
-            mu, sigma = model.predict(x.reshape(1, -1), return_std=True)
+        def acq(x_n):
+            mu, sigma = self.gp.predict(x_n.reshape(1, -1), return_std=True)
             sigma = np.maximum(sigma, 1e-12)
             z = (y_min - mu) / sigma
-            return -((y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z)).flatten()
+            return -( (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z) )
 
-        for i in range(n_init, self.budget):
-            try:
-                # Refit kernel every 10 steps to save cost
-                self.gp.n_restarts_optimizer = 2 if i % 10 == 0 else 0
-                self.gp.fit(X_obs, y_obs)
-            except:
-                pass
-            
-            # Multi-start acquisition optimization
-            starts = [best_x] + [np.random.uniform(lb, ub) for _ in range(3)]
-            best_acq = np.inf
-            next_x = best_x
-            
-            for start_x in starts:
-                res = minimize(
-                    lambda x: ei(x, self.gp, best_y),
-                    start_x,
-                    bounds=list(zip(lb, ub)),
-                    method='L-BFGS-B'
-                )
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
-            
-            # Fallback for numerical instability
-            if np.any(np.isnan(next_x)):
-                next_x = np.random.uniform(lb, ub)
-                
-            y_new = func(next_x)
-            
-            X_obs = np.vstack([X_obs, next_x])
-            y_obs = np.append(y_obs, y_new)
-            
-            if y_new < best_y:
-                best_y = float(y_new)
-                best_x = next_x
-                
-        return best_y, best_x
+        # Hybrid strategy: Differential Evolution for global search + L-BFGS for refinement
+        try:
+            res = differential_evolution(
+                acq, bounds=[(0, 1)]*self.dim, popsize=10, mutation=(0.5, 1), recombination=0.7, tol=0.01
+            )
+            # Polish with L-BFGS-B
+            res_refined = minimize(acq, res.x, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+            target_x = res_refined.x
+        except:
+            target_x = best_x_norm + np.random.normal(0, 0.1, self.dim)
+        
+        return np.clip(target_x, 0, 1) * (ub - lb) + lb

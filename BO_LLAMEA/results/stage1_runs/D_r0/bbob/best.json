@@ -1,7 +1,7 @@
 {
   "class_name": "BayesianOptimizer",
-  "fitness": 0.4886427863310381,
-  "number": 88,
+  "fitness": 0.48149147422615934,
+  "number": 53,
   "metric": {
     "reference": 79.48,
     "scale": 58.98920507625225,

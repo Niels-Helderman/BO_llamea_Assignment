@@ -1,83 +1,79 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
+from scipy.optimize import minimize
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-10)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=1e-10, normalize_y=True, n_restarts_optimizer=0)
+        self.kernel = ConstantKernel(1.0) * Matern(nu=2.5) + WhiteKernel(noise_level=1e-8)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=0)
+        self.tr_length = 0.4
+        self.min_tr = 0.02
+        self.max_tr = 0.5
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        # Increased initial design to improve early-stage surrogate accuracy
-        n_init = max(12, 2 * self.dim + 4)
+        # Optimized initial design: slightly larger to cover more space early
+        n_init = max(4, min(self.budget // 3, 2 * self.dim + 4))
+        sampler = qmc.Sobol(d=self.dim, scramble=True)
+        init_points = sampler.random(n_init)
         
-        sampler = qmc.LatinHypercube(d=self.dim)
-        X_init = qmc.scale(sampler.random(n_init), lb, ub)
+        X_obs, y_obs = [], []
+        best_y = np.inf
         
-        X_obs = []
-        y_obs = []
-        for x in X_init:
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
+            else:
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
+            
+            y = float(func(x))
             X_obs.append(x)
-            y_obs.append(func(x))
-        
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
-        
-        tr_size = 0.5
-        tr_min = 1e-3
-        
-        for i in range(n_init, self.budget):
-            X_data = np.array(X_obs)
-            y_data = np.array(y_obs)
+            y_obs.append(y)
             
-            # Periodically re-fit hyperparameters to ensure GP responsiveness
-            if i % 10 == 0:
-                self.gp.n_restarts_optimizer = 2
+            if y < best_y:
+                best_y = y
+                self.tr_length = min(self.max_tr, self.tr_length * 1.1)
             else:
-                self.gp.n_restarts_optimizer = 0
+                self.tr_length = max(self.min_tr, self.tr_length * 0.9)
             
-            try:
-                self.gp.fit(X_data, y_data)
-            except:
-                pass
-            
-            # Decay beta more aggressively to balance exploration/exploitation earlier
-            beta = 2.5 * (1.0 - (i / self.budget)**0.5)
-            
-            tr_lb = np.maximum(lb, best_x - tr_size * (ub - lb))
-            tr_ub = np.minimum(ub, best_x + tr_size * (ub - lb))
-            
-            def ucb(x):
-                mu, sigma = self.gp.predict(x.reshape(1, -1), return_std=True)
-                return mu - beta * sigma
+        best_idx = np.argmin(y_obs)
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
 
-            # Multi-start acquisition optimization
-            next_x = None
-            best_acq = np.inf
-            seeds = [best_x] + [np.random.uniform(tr_lb, tr_ub) for _ in range(10)]
-            for x0 in seeds:
-                res = minimize(ucb, x0, bounds=list(zip(tr_lb, tr_ub)), method='L-BFGS-B')
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        # Periodic hyperparameter fitting (only if not too expensive)
+        try:
+            self.gp.fit(X_norm, y)
+        except:
+            return np.random.uniform(lb, ub)
             
-            if next_x is None:
-                next_x = np.random.uniform(lb, ub)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                tr_size = min(1.0, tr_size * 1.2)
-            else:
-                tr_size = max(tr_min, tr_size * 0.8)
-                
-        return best_y, best_x
+        y_min = np.min(y)
+        best_x_norm = X_norm[np.argmin(y)]
+        
+        def acq(x_n):
+            mu, sigma = self.gp.predict(x_n.reshape(1, -1), return_std=True)
+            sigma = np.maximum(sigma, 1e-12)
+            z = (y_min - mu) / sigma
+            return -((y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z))
+
+        best_val = np.inf
+        target_x = None
+        
+        # Multi-start optimization with local TR bias
+        starts = [best_x_norm] + [np.clip(best_x_norm + np.random.normal(0, self.tr_length, self.dim), 0, 1) for _ in range(8)]
+        starts.append(np.random.rand(self.dim))
+        
+        for x0 in starts:
+            res = minimize(acq, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+            if res.fun < best_val:
+                best_val = res.fun
+                target_x = res.x
+        
+        if target_x is None:
+            return np.random.uniform(lb, ub)
+        return np.clip(target_x, 0, 1) * (ub - lb) + lb

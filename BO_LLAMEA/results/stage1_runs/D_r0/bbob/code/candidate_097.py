@@ -1,75 +1,67 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc, norm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
+from scipy.optimize import minimize
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        # Use ARD (Automatic Relevance Determination) by setting length_scale to be a vector
+        # ARD Matern kernel to allow varying relevance of different dimensions
         self.kernel = ConstantKernel(1.0) * Matern(nu=2.5, length_scale=np.ones(dim)) + WhiteKernel(noise_level=1e-8)
-        self.gp = GaussianProcessRegressor(
-            kernel=self.kernel, 
-            alpha=0.0, # Handled by WhiteKernel
-            normalize_y=True,
-            n_restarts_optimizer=0
-        )
-
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=2)
+        
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        
-        # Initial exploration
-        n_init = 2 * self.dim + 5
+        n_init = min(self.budget, 2 * self.dim + 4)
         sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = qmc.scale(sampler.random(n_init), lb, ub)
-        y_obs = np.array([func(x) for x in X_obs])
+        init_points = sampler.random(n_init)
         
-        best_idx = np.argmin(y_obs)
-        best_x = X_obs[best_idx].copy()
-        best_y = float(y_obs[best_idx])
+        X_obs, y_obs = [], []
         
-        # Iterative optimization
-        for i in range(n_init, self.budget):
-            # Periodically re-optimize hyperparameters to handle changing landscape
-            self.gp.n_restarts_optimizer = 5 if (i % 50 == 0) else 0
-            try:
-                self.gp.fit(X_obs, y_obs)
-            except:
-                # Fallback to current best if fit fails
-                next_x = best_x + np.random.normal(0, 0.01, self.dim) * (ub - lb)
+        for i in range(self.budget):
+            if i < n_init:
+                x = init_points[i] * (ub - lb) + lb
             else:
-                def ei(x):
-                    mu, sigma = self.gp.predict(x.reshape(1, -1), return_std=True)
-                    sigma = np.maximum(sigma, 1e-12)
-                    z = (best_y - mu) / sigma
-                    return -((best_y - mu) * norm.cdf(z) + sigma * norm.pdf(z))
+                x = self._propose(np.array(X_obs), np.array(y_obs), lb, ub)
+            
+            y = float(func(x))
+            X_obs.append(x)
+            y_obs.append(y)
+            
+        best_idx = np.argmin(y_obs)
+        return float(y_obs[best_idx]), np.array(X_obs[best_idx])
 
-                # Multi-start optimization of EI to avoid getting stuck in local optima
-                starts = [best_x] + [np.random.uniform(lb, ub) for _ in range(3)]
-                best_ei = float('inf')
-                next_x = best_x
-                for start in starts:
-                    res = minimize(ei, start, bounds=list(zip(lb, ub)), method='L-BFGS-B')
-                    if res.fun < best_ei:
-                        best_ei = res.fun
-                        next_x = res.x
-            
-            # Ensure boundaries
-            next_x = np.clip(next_x, lb, ub)
-            
-            # Prevent duplicate sampling
-            if np.any(np.all(np.isclose(X_obs, next_x), axis=1)):
-                next_x = np.random.uniform(lb, ub)
-            
-            y_new = func(next_x)
-            
-            X_obs = np.vstack([X_obs, next_x])
-            y_obs = np.append(y_obs, y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
+    def _propose(self, X, y, lb, ub):
+        X_norm = (X - lb) / (ub - lb)
+        y_min = np.min(y)
+        
+        # Periodic refit: optimize hyperparameters every few steps to save compute
+        self.gp.fit(X_norm, y)
+        
+        def acq(x_n):
+            mu, sigma = self.gp.predict(x_n.reshape(1, -1), return_std=True)
+            sigma = np.maximum(sigma, 1e-12)
+            z = (y_min - mu) / sigma
+            return -( (y_min - mu) * norm.cdf(z) + sigma * norm.pdf(z) )
+
+        best_x, best_acq = None, np.inf
+        
+        # Multi-start acquisition optimization
+        starts = np.vstack([
+            X_norm[np.argmin(y)], 
+            np.random.rand(8, self.dim)
+        ])
+        
+        for x0 in starts:
+            res = minimize(acq, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-5)
+            if res.fun < best_acq:
+                best_acq = res.fun
+                best_x = res.x
                 
-        return best_y, best_x
+        if best_x is None:
+            return np.random.uniform(lb, ub)
+            
+        return np.clip(best_x, 0, 1) * (ub - lb) + lb

@@ -1,78 +1,77 @@
 import numpy as np
-from scipy.optimize import minimize
-from scipy.stats import qmc, norm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
+from scipy.stats import norm, qmc
+from scipy.optimize import minimize
 
 class BayesianOptimizer:
-    def __init__(self, budget=600, dim=6):
+    def __init__(self, budget, dim):
         self.budget = budget
         self.dim = dim
-        # Using ARD kernel (length_scale is array of shape (dim,))
+        # ARD Matern kernel for individual feature sensitivity
         self.kernel = ConstantKernel(1.0) * Matern(length_scale=np.ones(dim), nu=2.5) + WhiteKernel(noise_level=1e-8)
-        self.gp = GaussianProcessRegressor(kernel=self.kernel, alpha=0.0, normalize_y=False, n_restarts_optimizer=0)
+        self.gp = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, n_restarts_optimizer=0)
+        self.X_obs = []
+        self.y_obs = []
 
     def __call__(self, func):
         lb = np.array(func.bounds.lb)
         ub = np.array(func.bounds.ub)
-        n_init = 2 * self.dim + 2
         
-        sampler = qmc.Sobol(d=self.dim, scramble=True)
-        X_obs = [qmc.scale(sampler.random(1), lb, ub).flatten() for _ in range(n_init)]
-        y_obs = [func(x) for x in X_obs]
+        # Initial design using Latin Hypercube Sampling
+        n_init = max(2 * self.dim + 1, self.budget // 5)
+        sampler = qmc.LatinHypercube(d=self.dim)
+        init_points = sampler.random(n_init)
         
-        best_x = X_obs[np.argmin(y_obs)]
-        best_y = float(np.min(y_obs))
-        
-        tr_size = 0.5
-        
-        for i in range(n_init, self.budget):
-            # Target transformation: log(y - min_y + eps) to handle scale and positivity
-            y_curr = np.array(y_obs)
-            y_min = np.min(y_curr)
-            y_trans = np.log(y_curr - y_min + 1e-6)
-            
-            # Fit GP on transformed data
-            X_data = np.array(X_obs)
-            try:
-                self.gp.fit(X_data, y_trans)
-            except:
-                pass
-            
-            # Acquisition: Expected Improvement on log-transformed surface
-            def ei(x):
-                x = np.atleast_2d(x)
-                mu, sigma = self.gp.predict(x, return_std=True)
-                sigma = np.maximum(sigma, 1e-9)
-                target = np.min(y_trans)
-                z = (target - mu) / sigma
-                return -(sigma * (z * norm.cdf(z) + norm.pdf(z)))
-
-            # Optimization within Trust Region
-            tr_lb = np.maximum(lb, best_x - tr_size * (ub - lb))
-            tr_ub = np.minimum(ub, best_x + tr_size * (ub - lb))
-            
-            best_acq = np.inf
-            next_x = None
-            # Multi-start from incumbent and random points
-            seeds = [best_x] + [np.random.uniform(tr_lb, tr_ub) for _ in range(5)]
-            for x0 in seeds:
-                res = minimize(ei, x0, bounds=list(zip(tr_lb, tr_ub)), method='L-BFGS-B')
-                if res.fun < best_acq:
-                    best_acq = res.fun
-                    next_x = res.x
-            
-            if next_x is None:
-                next_x = np.random.uniform(lb, ub)
-            
-            y_new = func(next_x)
-            X_obs.append(next_x)
-            y_obs.append(y_new)
-            
-            if y_new < best_y:
-                best_y, best_x = float(y_new), next_x
-                tr_size = min(1.0, tr_size * 1.2) # Expand on success
+        for i in range(self.budget):
+            if i < n_init:
+                x_norm = init_points[i]
             else:
-                tr_size = max(0.05, tr_size * 0.8) # Shrink on failure
+                x_norm = self._propose(lb, ub)
                 
-        return best_y, best_x
+            x = x_norm * (ub - lb) + lb
+            y = func(x)
+            
+            self.X_obs.append(x_norm)
+            self.y_obs.append(y)
+            
+        best_idx = np.argmin(self.y_obs)
+        return float(self.y_obs[best_idx]), self.X_obs[best_idx] * (ub - lb) + lb
+
+    def _propose(self, lb, ub):
+        X = np.array(self.X_obs)
+        y = np.array(self.y_obs)
+        
+        # Periodic refit to save cost, increase frequency as data grows
+        fit = (len(self.X_obs) % 5 == 0) or (len(self.X_obs) < 20)
+        if fit:
+            self.gp.fit(X, y)
+        
+        y_min = np.min(y)
+        
+        def acquisition(x_norm):
+            x_norm = x_norm.reshape(1, -1)
+            mu, sigma = self.gp.predict(x_norm, return_std=True)
+            with np.errstate(divide='ignore'):
+                imp = y_min - mu
+                z = imp / (sigma + 1e-9)
+                ei = imp * norm.cdf(z) + sigma * norm.pdf(z)
+            return -ei.flatten()
+
+        # Multi-start optimization of the acquisition function
+        best_acq = -np.inf
+        target_x = np.random.rand(self.dim)
+        
+        # Candidates from random samples and best point
+        starts = [self.X_obs[np.argmin(y)]] + [np.random.rand(self.dim) for _ in range(5)]
+        
+        for x0 in starts:
+            try:
+                res = minimize(acquisition, x0, bounds=[(0, 1)]*self.dim, method='L-BFGS-B', tol=1e-3)
+                if -res.fun > best_acq:
+                    best_acq = -res.fun
+                    target_x = res.x
+            except:
+                continue
+                
+        return np.clip(target_x, 0, 1)
