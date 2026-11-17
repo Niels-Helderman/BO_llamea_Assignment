@@ -384,11 +384,11 @@ The following plots show the mean best-so-far convergence over ten seeds (90–9
 
 **BBOB convergence**
 
-![BBOB convergence](results/stage2/budget_0600/figures/bbob_convergence.png)
+![BBOB convergence](results/stage2/budget_0600/figures/bbob_normalized.png)
 
 **Real-world convergence**
 
-![Real-world convergence](results/stage2/budget_0600/figures/realworld_convergence.png)
+![Real-world convergence](results/stage2/budget_0600/figures/realworld_normalized.png)
 
 | Algorithm | BBOB final objective (mean ± SE) | BBOB AOCC | Real-world final objective (mean ± SE) | Real-world AOCC |
 |---|---:|---:|---:|---:|
