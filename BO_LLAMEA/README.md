@@ -376,6 +376,26 @@ The plots show mean best-so-far performance with ± one standard error:
 
 Failed Stage 2 runs are excluded from mean convergence curves and uncertainty bands. Their failure counts remain available in the status and summary files.
 
+## Stage 2 analysis
+
+This section will contain the final comparison of the four methods on both
+problems after the complete 300-evaluation benchmark results have been
+analysed.
+
+For the final report, add:
+
+- mean best-so-far convergence plots for BBOB and the real-world problem;
+- a comparison of the BBOB and real-world winners on their original targets;
+- a comparison of each winner when transferred to the other target;
+- the performance of CMA-ES and BoTorch on both targets;
+- an explanation of specialization or generalization, if supported by the results;
+- a short discussion of the effect of stopping at 300 evaluations instead of
+  the 600-evaluation assignment budget.
+
+Each interpretation should refer to the saved Stage 2 CSV or JSON files. Figures
+and summary values should not be reported if they cannot be traced back to a
+stored run.
+
 ## Reproducibility and logging
 
 The experiment records the YAML configuration, prompts, seeds, budgets, metric settings, selected methods and package versions. It also saves candidate source code and per-seed traces.
@@ -417,6 +437,7 @@ These values were not confirmed as instructor-specified settings. If the setting
 
 The project is also limited by the following unresolved experiment choices:
 
+- the submitted Stage 2 results were run for **300 objective evaluations per run**, rather than the assignment's target of 600, because there was not enough time before the deadline;
 - the final AOCC mode and lower/upper bounds;
 - whether the AOCC bounds differ between BBOB and the real-world problem;
 - the exact machine and hardware where the final experiments are run;
@@ -424,5 +445,3 @@ The project is also limited by the following unresolved experiment choices:
 ## Dependencies and attribution
 
 This project uses [LLaMEA](https://github.com/XAI-liacs/LLaMEA), [IOH](https://github.com/IOHprofiler/IOHexperimenter), [Practical_Problems](https://github.com/BayesOptApp/Practical_Problems), [pycma](https://github.com/CMA-ES/pycma), [BoTorch](https://github.com/pytorch/botorch), [GPyTorch](https://github.com/cornellius-gp/gpytorch) and [scikit-learn](https://scikit-learn.org/).
-
-When code is copied or adapted from another source, add a comment naming the author or repository and link to the original. Check the license of external code before including or publishing it.
