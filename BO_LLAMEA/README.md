@@ -378,23 +378,28 @@ Failed Stage 2 runs are excluded from mean convergence curves and uncertainty ba
 
 ## Stage 2 analysis
 
-This section will contain the final comparison of the four methods on both
-problems after the complete 300-evaluation benchmark results have been
-analysed.
+### Stage 2 results analysis
 
-For the final report, add:
+The following plots show the mean best-so-far convergence over ten seeds (90–99), with shaded regions indicating ±1 standard error.
 
-- mean best-so-far convergence plots for BBOB and the real-world problem;
-- a comparison of the BBOB and real-world winners on their original targets;
-- a comparison of each winner when transferred to the other target;
-- the performance of CMA-ES and BoTorch on both targets;
-- an explanation of specialization or generalization, if supported by the results;
-- a short discussion of the effect of stopping at 300 evaluations instead of
-  the 600-evaluation assignment budget.
+**BBOB convergence**
 
-Each interpretation should refer to the saved Stage 2 CSV or JSON files. Figures
-and summary values should not be reported if they cannot be traced back to a
-stored run.
+![BBOB convergence](results/stage2/budget_0600/figures/bbob_convergence.png)
+
+**Real-world convergence**
+
+![Real-world convergence](results/stage2/budget_0600/figures/realworld_convergence.png)
+
+| Algorithm | BBOB final objective (mean ± SE) | BBOB AOCC | Real-world final objective (mean ± SE) | Real-world AOCC |
+|---|---:|---:|---:|---:|
+| LLaMEA_bbob | 79.480039 ± 0.000007 | **0.7789** | **1.921107 ± 0.102408** | 0.5434 |
+| LLaMEA_realworld | 79.490172 ± 0.002749 | 0.5742 | 2.032639 ± 0.181797 | **0.5487** |
+| CMA-ES | **79.480011 ± 0.000005** | 0.5902 | 1.997012 ± 0.110924 | 0.5429 |
+| BoTorch | 79.487469 ± 0.001755 | 0.5540 | 2.056503 ± 0.181569 | 0.5433 |
+
+All four algorithms completed 600 evaluations on both targets across all ten seeds. Lower final objective and higher AOCC indicate better performance. On BBOB, `LLaMEA_bbob` achieved the highest AOCC, indicating faster convergence overall, while CMA-ES obtained a marginally better final objective. On the real-world problem, `LLaMEA_bbob` achieved the lowest final mean objective, demonstrating effective transfer beyond its original target. In contrast, `LLaMEA_realworld` achieved the highest real-world AOCC but did not obtain the best final objective. This difference may reflect their search strategies: the BBOB winner uses global expected-improvement optimization with periodic GP hyperparameter tuning, while the real-world winner uses an adaptive local trust region and more frequent GP fitting. Overall, the results suggest stronger generalization by the BBOB-generated algorithm, whereas the real-world-generated algorithm shows some specialization in convergence behavior but no consistent advantage in final solution quality. The small real-world differences relative to their standard errors warrant cautious interpretation.
+
+All reported values are taken from `results/stage2/budget_0600/summary.csv` and can be verified against the corresponding `bbob_results.json`, `realworld_results.json`, and per-seed status files.
 
 ## Reproducibility and logging
 
