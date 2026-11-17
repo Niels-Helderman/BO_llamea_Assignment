@@ -1,0 +1,18 @@
+nohup: ignoring input
+Evaluating LLaMEA_bbob on bbob (10 seeds, budget=100, workers=8)
+  10/10 valid; final mean=79.48061239051601; GP/Python warnings=322
+Evaluating LLaMEA_realworld on bbob (10 seeds, budget=100, workers=8)
+  10/10 valid; final mean=79.49073311290424; GP/Python warnings=1683
+Evaluating cmaes on bbob (10 seeds, budget=100, workers=8)
+  10/10 valid; final mean=80.59873829151775; GP/Python warnings=0
+Evaluating botorch on bbob (10 seeds, budget=100, workers=8)
+  10/10 valid; final mean=79.49957740022714; GP/Python warnings=905
+Evaluating LLaMEA_bbob on realworld (10 seeds, budget=100, workers=8)
+  10/10 valid; final mean=2.872689678108185; GP/Python warnings=80
+Evaluating LLaMEA_realworld on realworld (10 seeds, budget=100, workers=8)
+  10/10 valid; final mean=2.990509398703643; GP/Python warnings=3774
+Evaluating cmaes on realworld (10 seeds, budget=100, workers=8)
+  10/10 valid; final mean=3.8320571105429657; GP/Python warnings=0
+Evaluating botorch on realworld (10 seeds, budget=100, workers=8)
+  10/10 valid; final mean=3.039088473685706; GP/Python warnings=900
+Stage 2 complete. Results: /home/s4968964/BO_llamea_Assignment/BO_LLAMEA/results/stage2/budget_0100 (check failed-run counts).

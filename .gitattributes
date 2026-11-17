@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+/BO_LLAMEA/src/__pycache__/*
+/BO_LLAMEA/runs/__pycache__/*
