@@ -162,10 +162,10 @@ def plot_stage2(results, budget, path, optimum=None, metric=None):
                     10.0 ** float(metric['upper']))
         normalized = metric.get('scale') is not None
         mode = 'normalized' if normalized else 'unscaled'
-        ax.set_ylabel('Normalized gap' if normalized else 'Gap')
+        ax.set_ylabel('Best-so-far objective (normalized)' if normalized else 'Best-so-far objective (unscaled)')
     else:
         mode = 'raw'
-        ax.set_ylabel('Loss' if optimum is not None else 'Objective')
+        ax.set_ylabel('Best-so-far objective')
     target = results[0].problem if results else 'bbob'
     problem_name = 'BBOB' if target == 'bbob' else 'real world'
     seeds = sorted({r.seed for r in results})
