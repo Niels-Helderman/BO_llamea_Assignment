@@ -13,7 +13,7 @@ llm:
 # Elitist evolutionary search settings.
 llamea:
   n_parents: 2                  # 1..4; initial population size
-  n_offspring: 1                # 1..4; number generated per generation
+  n_offspring: 2                # 1..4; number generated per generation
   elitism: true                # Keep best parents
   parent_selection: roulette   # random | roulette | tournament
   tournament_size: 3           # Used only for tournament selection
