@@ -435,12 +435,6 @@ The baseline implementations therefore use documented provisional choices:
 
 These values were not confirmed as instructor-specified settings. If the setting is changed, all methods must still be run with the same evaluation budget and the same seed set.
 
-The project is also limited by the following unresolved experiment choices:
-
-- the submitted Stage 2 results were run for **300 objective evaluations per run**, rather than the assignment's target of 600, because there was not enough time before the deadline;
-- the final AOCC mode and lower/upper bounds;
-- whether the AOCC bounds differ between BBOB and the real-world problem;
-- the exact machine and hardware where the final experiments are run;
 
 ## Dependencies and attribution
 
